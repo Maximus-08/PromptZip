@@ -27,13 +27,16 @@ The agent receives a `PromptZipObservation` object (subclasses OpenEnv's `Observ
 
 ```python
 class PromptZipObservation(Observation):
+    done: bool = False
+    reward: float | int | None = None
+    metadata: dict = {}
     prompt_text: str           # Current full prompt text
-    spans: list[str]           # Prompt segmented into sentences/clauses
-    token_count: int           # Current token count
+    spans: dict[str, str]      # {uuid: span_text} — stable IDs
+    token_count: int           # Current token count (approx)
     task_type: str             # "summarization" | "code_gen" | "reasoning" | "qa"
     token_budget: int          # Target token count to stay under
-    action_history: list       # [(action_type, span_index), ...] — previous steps
-    locked_spans: list[int]    # Span indices marked as preserved
+    action_history: list       # [(action_type, span_id), ...] — previous steps
+    locked_spans: list[str]    # UUIDs of preserved spans
 ```
 
 ### Action Space
@@ -43,7 +46,7 @@ The agent outputs a single `PromptZipAction` per step (subclasses OpenEnv's `Act
 ```python
 class PromptZipAction(Action):
     action_type: Literal["rephrase", "elide", "preserve"]
-    span_index: int  # Index into spans[] list
+    span_id: str  # UUID key into spans dict
 ```
 
 | action_type | Description | Execution mechanism | When the agent learns to use it |
@@ -57,8 +60,8 @@ class PromptZipAction(Action):
 ### Behavior
 
 * Takes **multiple steps per episode** — one `PromptZipAction` per `step()` call
-* Continues until: `token_count ≤ token_budget`, `quality_score < 6.0` (early termination), or `max_steps = 2 × len(spans)` is reached
-* `step()` returns `StepResult(observation=PromptZipObservation, reward=step_reward, done=bool)`
+* Continues until: `token_count ≤ token_budget`, `quality_score < 6.0` (early termination), `max_steps = 2 × len(spans)` is reached, or short-circuit conditions met (all spans locked or empty prompt)
+* `step()` returns `PromptZipObservation` (Observation base provides done, reward, metadata)
 * Policy and span selector weights are updated jointly via **GRPO** through TRL/Torchforge
 
 ### Reward Signal
@@ -196,16 +199,16 @@ sequenceDiagram
     E->>TGT: original prompt → generate original_output (cached)
     E->>C: PromptZipObservation {prompt, spans[], tokens, budget}
     loop Until done=True
-        C->>E: step(PromptZipAction(action_type, span_index))
+        C->>E: step(PromptZipAction(action_type, span_id))
         alt action_type == rephrase
             E->>RW: span text
             RW->>E: rewritten span (temp=0)
         else action_type == elide
-            E->>E: remove span from spans[]
+            E->>E: remove span from spans dict
         else action_type == preserve
-            E->>E: add span to locked_spans
+            E->>E: add span_id to locked_spans
         end
-        E->>C: StepResult(observation, step_reward, done)
+        E->>C: Updated PromptZipObservation (with step_reward, done)
     end
     E->>TGT: compressed prompt → generate compressed_output
     TGT->>E: compressed_output

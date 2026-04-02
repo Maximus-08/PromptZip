@@ -19,9 +19,9 @@ Every LLM call wastes 30–50% of tokens on boilerplate and filler. Output token
 | Component | Definition |
 | --- | --- |
 | **State** | `PromptZipObservation` (see OpenEnv Models below) |
-| **Actions** | `PromptZipAction(action_type, span_index)` — each is one `step()` call |
+| **Actions** | `PromptZipAction(action_type, span_id)` — each is one `step()` call |
 | **Reward** | Intermediate: token delta per step. Final: `quality_score × (tokens_saved / tokens_original)` |
-| **Termination** | Token count ≤ budget **or** quality drops below threshold **or** `max_steps` reached |
+| **Termination** | Token count ≤ budget, quality < threshold, max_steps reached, or short-circuit (all-locked/empty) |
 | **max_steps** | `2 × len(spans)` — each span can be touched at most twice |
 | **Grader** | LLM-as-judge (temperature=0, single call) scoring compressed output vs. baseline |
 
@@ -33,7 +33,7 @@ Every LLM call wastes 30–50% of tokens on boilerplate and filler. Output token
 | **Elide** | Delete a selected span entirely | Removes the span; no LLM call needed | Boilerplate like "please be thorough", polite preambles |
 | **Preserve** | Mark a span as off-limits for further compression | Tags span; skips it in future steps | Task-critical instructions, factual content |
 
-The agent selects an action **and a target span** (sentence or clause index) per step via a single `PromptZipAction` model — see OpenEnv Models below.
+The agent selects an action **and a target span** (sentence or clause UUID) per step via a single `PromptZipAction` model — see OpenEnv Models below.
 
 ---
 
@@ -44,12 +44,12 @@ These typed Pydantic models implement OpenEnv's base classes and are required fo
 ### Action
 
 ```python
+```python
 from openenv.core.models import Action
-from typing import Literal
 
 class PromptZipAction(Action):
     action_type: Literal["rephrase", "elide", "preserve"]
-    span_index: int  # Index into spans[] list
+    span_id: str  # UUID key into spans dict
 ```
 
 ### Observation
@@ -58,18 +58,21 @@ class PromptZipAction(Action):
 from openenv.core.models import Observation
 
 class PromptZipObservation(Observation):
+    done: bool = False
+    reward: float | int | None = None
+    metadata: dict = {}
     prompt_text: str           # Current full prompt text
-    spans: list[str]           # Prompt segmented into sentences/clauses
-    token_count: int           # Current token count
+    spans: dict[str, str]      # {uuid: span_text} — stable IDs
+    token_count: int           # Current token count (approx len(words)*1.3)
     task_type: str             # "summarization" | "code_gen" | "reasoning" | "qa"
     token_budget: int          # Target token count to stay under
-    action_history: list       # [(action_type, span_index), ...] — previous steps
-    locked_spans: list[int]    # Span indices marked as preserved
+    action_history: list       # [(action_type, span_id), ...] — previous steps
+    locked_spans: list[str]    # UUIDs of preserved spans
 ```
 
 ### Step Return
 
-`step()` returns `StepResult(observation=PromptZipObservation, reward=step_reward, done=bool)` — OpenEnv's standard contract. The `done` flag is `True` when any termination condition is met.
+`step()` returns the updated `PromptZipObservation` (where `done` and `reward` are populated) — OpenEnv's standard contract. The `done` flag is `True` when any termination condition is met.
 
 ---
 
@@ -77,14 +80,14 @@ class PromptZipObservation(Observation):
 
 This is the core execution mechanism. Each step:
 
-1. **Agent outputs** a `PromptZipAction(action_type, span_index)`.
+1. **Agent outputs** a `PromptZipAction(action_type, span_id)`.
 2. **Environment executes**:
-   - `elide`: removes the span from `spans[]` and rebuilds `prompt_text`.
-   - `rephrase`: sends the span to the Rewrite LLM (`"Rewrite concisely, preserve meaning: {span}"`). Span is replaced with the response.
-   - `preserve`: tags the span index in `locked_spans`; future steps skip it.
-3. **Environment returns** `StepResult` with updated `PromptZipObservation` + intermediate reward.
+   - `elide`: removes the span from `spans` dict and rebuilds `prompt_text`.
+   - `rephrase`: sends the span to the Rewrite LLM (`"Rewrite concisely... {span}"`). Span is replaced with the response.
+   - `preserve`: tags the span UUID in `locked_spans`; future steps skip it.
+3. **Environment returns** updated `PromptZipObservation` containing intermediate reward.
 4. Loop continues until termination condition is met.
-5. At episode end, Target LLM generates outputs for both prompts; LLM Judge scores the comparison.
+5. At episode end (unless short-circuited), Target LLM generates outputs for both prompts; LLM Judge scores the comparison.
 
 The Rewrite LLM runs at `temperature=0` for deterministic outputs. It is **not** the same model as the Judge.
 
@@ -135,9 +138,9 @@ The RL agent learns these asymmetries across thousands of episodes, generalizing
 
 | API | Behavior |
 | --- | --- |
-| `reset()` | Loads the next bloated prompt; segments into `spans[]`; pre-generates `original_output` via Target LLM; returns initial `PromptZipObservation` |
-| `state()` | Returns current `PromptZipObservation` (episode metadata) |
-| `step(PromptZipAction)` | Applies one compression action to the selected span; returns `StepResult(observation, reward, done)` |
+| `reset()` | Loads the next bloated prompt; segments into UUID-keyed spans; pre-generates `original_output` via Target LLM; returns initial `PromptZipObservation` |
+| `state` | Returns current `State(episode_id, step_count)` |
+| `step(PromptZipAction)` | Applies one compression action to the selected span; returns updated `PromptZipObservation` (with reward, done) |
 
 ---
 
