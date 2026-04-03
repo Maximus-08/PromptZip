@@ -13,6 +13,10 @@ dependencies = [
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
+# Flat layout: models.py, client.py at root; server/ subpackage
+[tool.setuptools]
+py-modules = ["models", "client"]
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["prompt_zip_env*"]
+include = ["server*"]

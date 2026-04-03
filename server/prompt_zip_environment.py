@@ -11,6 +11,7 @@ At the end of an episode (budget met or max_steps hit) calls the Judge
 for final reward. Short-circuits all-locked or empty-prompt states.
 """
 
+import logging
 import os
 import re
 import uuid
@@ -20,6 +21,8 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 from models import PromptZipAction, PromptZipObservation
+
+log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
 # Hardcoded dataset: 4 per task type = 16 total
@@ -265,7 +268,8 @@ class _GroqClient:
                 timeout=timeout,
             )
             return resp.choices[0].message.content or ""
-        except Exception:
+        except Exception as e:
+            log.warning("Groq API call failed (%s): %s", model, e)
             return ""
 
     def rewrite(self, span: str) -> str:
@@ -342,7 +346,6 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     def __init__(self) -> None:
         super().__init__()
         self._groq = _GroqClient()
-        self._dataset = DATASET
         self._dataset_idx: int = 0
         self._state = State(episode_id=None, step_count=0)
 
@@ -417,7 +420,10 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._action_history = []
         self._locked_spans = []
 
-        entry = self._dataset[self._dataset_idx % len(self._dataset)]
+        if seed is not None:
+            self._dataset_idx = seed % len(DATASET)
+
+        entry = DATASET[self._dataset_idx % len(DATASET)]
         self._dataset_idx += 1
         self._task_type = entry["task_type"]
         self._token_budget = entry["token_budget"]

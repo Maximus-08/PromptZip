@@ -1,9 +1,12 @@
 """Client for the PromptZip RL Environment."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from openenv.core.env_client import EnvClient
 
-from models import PromptZipAction, PromptZipObservation
+try:
+    from .models import PromptZipAction, PromptZipObservation  # package import
+except ImportError:
+    from models import PromptZipAction, PromptZipObservation  # flat / Docker / test
 
 
 class PromptZipEnv(EnvClient):
@@ -17,17 +20,16 @@ class PromptZipEnv(EnvClient):
         cls,
         image_name: str = "prompt_zip_env:latest",
         port: int = 8000,
-        env_vars: Optional[Dict[str, str]] = None,
-        timeout: int = 30,
         **kwargs: Any,
     ) -> "PromptZipEnv":
         """
         Return a client connected to a locally-running Docker container.
         The caller is responsible for starting the container first:
 
-            docker run -p 8000:8000 -e GROQ_API_KEY=... prompt_zip_env:latest
+            docker run -p 8000:8000 -e GROQ_API_KEY=<key> prompt_zip_env:latest
 
         Then connect:
+
             with PromptZipEnv.from_docker_image().sync() as client:
                 obs = client.reset()
         """

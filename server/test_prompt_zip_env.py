@@ -40,9 +40,12 @@ def test_reset_returns_valid_obs():
 
 # ── 2. elide decreases token_count and returns positive reward ───────────────
 
-def test_elide_decreases_tokens(env):
+def test_elide_decreases_tokens():
+    env = PromptZipEnvironment()
+    env._groq._client = None  # force mock — hermetic regardless of GROQ_API_KEY
+    obs = env.reset()
+
     # Need at least 2 spans to avoid empty-prompt guard
-    obs = env._last_obs
     if len(obs.spans) < 2:
         pytest.skip("fewer than 2 spans — prompt not splittable")
 
@@ -50,8 +53,7 @@ def test_elide_decreases_tokens(env):
     before = obs.token_count
     obs2 = env.step(PromptZipAction(action_type="elide", span_id=span_id))
     assert obs2.token_count < before
-    # reward >= 0: step_reward is always positive on a successful elide;
-    # if termination fires, final_reward can be negative only with live Groq quality < 6
+    # With mock judge (score=7.0), final_reward is always non-negative
     assert obs2.reward is not None and obs2.reward >= 0
 
 
