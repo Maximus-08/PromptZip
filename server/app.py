@@ -3,16 +3,15 @@
 import sys
 import os
 
-# Support running as:
-#   (repo root)    uvicorn prompt_zip_env.server.app:app
-#   (package dir)  uvicorn server.app:app   (Docker, PYTHONPATH=/app/env)
+# Ensure repo root is on sys.path so `models` and `server.*` imports resolve
+# when run as: uvicorn server.app:app  (from repo root or inside Docker)
 _pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _pkg_dir not in sys.path:
     sys.path.insert(0, _pkg_dir)
 
-from prompt_zip_env.server.prompt_zip_environment import PromptZipEnvironment  # noqa: E402
+from server.prompt_zip_environment import PromptZipEnvironment  # noqa: E402
 from openenv.core.env_server.http_server import create_app  # noqa: E402
-from prompt_zip_env.models import PromptZipAction, PromptZipObservation  # noqa: E402
+from models import PromptZipAction, PromptZipObservation  # noqa: E402
 
 app = create_app(
     PromptZipEnvironment,

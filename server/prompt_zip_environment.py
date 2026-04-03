@@ -19,7 +19,7 @@ from typing import Any, Optional
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-from ..models import PromptZipAction, PromptZipObservation
+from models import PromptZipAction, PromptZipObservation
 
 # ──────────────────────────────────────────────
 # Hardcoded dataset: 4 per task type = 16 total
@@ -34,7 +34,10 @@ DATASET: list[dict] = [
             "summary of the main points covered in the following text. "
             "Please make sure to be thorough and include all key ideas. "
             "Summarize the following passage:\n\n"
-            "{content}"
+            "The Amazon rainforest, often referred to as the lungs of the Earth, produces "
+            "20 percent of the world's oxygen. It spans nine countries and covers over "
+            "5.5 million square kilometres. Deforestation threatens its biodiversity, "
+            "with thousands of species at risk of extinction."
         ),
     },
     {
@@ -45,7 +48,10 @@ DATASET: list[dict] = [
             "the content of the following document? "
             "I would appreciate a comprehensive and well-structured response. "
             "Here is the document:\n\n"
-            "{content}"
+            "Climate change refers to long-term shifts in global temperatures and weather patterns. "
+            "Since the 1800s, human activities have been the main driver, primarily through the "
+            "burning of fossil fuels. This has led to rising sea levels, more frequent extreme "
+            "weather events, and significant ecosystem disruption."
         ),
     },
     {
@@ -56,7 +62,10 @@ DATASET: list[dict] = [
             "as thoroughly as possible, making sure not to leave out any crucial details. "
             "Please be as exhaustive as you reasonably can. "
             "The text to summarize is:\n\n"
-            "{content}"
+            "The Internet of Things (IoT) describes the network of physical objects embedded "
+            "with sensors and software to connect and exchange data with other devices over "
+            "the internet. Applications range from smart home devices to industrial automation, "
+            "raising both efficiency gains and significant privacy concerns."
         ),
     },
     {
@@ -67,7 +76,10 @@ DATASET: list[dict] = [
             "I would really appreciate if you could be thorough and cover everything. "
             "Do not skip over minor details. "
             "Summarize:\n\n"
-            "{content}"
+            "Photosynthesis is the process by which green plants convert sunlight into food. "
+            "Using chlorophyll, plants absorb light energy to transform carbon dioxide and "
+            "water into glucose and oxygen. This process forms the foundation of most food "
+            "chains on Earth."
         ),
     },
     # ── code_gen (4) ──────────────────────────
@@ -208,7 +220,7 @@ DATASET: list[dict] = [
 ]
 
 # ──────────────────────────────────────────────
-# Token counting (no tiktoken — no C-extension)
+# Token counting
 # ──────────────────────────────────────────────
 def _count_tokens(text: str) -> int:
     return max(1, int(len(text.split()) * 1.3))
@@ -342,6 +354,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._token_budget: int = 20
         self._original_token_count: int = 0
         self._initial_span_count: int = 0
+        self._original_prompt: str = ""   # stored at reset() — avoids stale index
         self._original_output: str = ""
         self._done: bool = False
         self._last_obs: Optional[PromptZipObservation] = None
@@ -380,7 +393,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         compressed_output = self._groq.generate(compressed_prompt)
         tokens_saved = self._original_token_count - self._token_count()
         quality = self._groq.judge(
-            original_prompt=self._dataset[self._dataset_idx]["prompt"],
+            original_prompt=self._original_prompt,  # fixed: stored at reset(), not re-indexed
             compressed_prompt=compressed_prompt,
             original_output=self._original_output,
             compressed_output=compressed_output,
@@ -408,6 +421,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._dataset_idx += 1
         self._task_type = entry["task_type"]
         self._token_budget = entry["token_budget"]
+        self._original_prompt = entry["prompt"]  # stored now, before idx is stale
 
         self._spans = _segment(entry["prompt"])
         self._original_token_count = _count_tokens(entry["prompt"])

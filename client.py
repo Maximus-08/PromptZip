@@ -3,7 +3,7 @@
 from typing import Any, Dict, Optional
 from openenv.core.env_client import EnvClient
 
-from .models import PromptZipAction, PromptZipObservation
+from models import PromptZipAction, PromptZipObservation
 
 
 class PromptZipEnv(EnvClient):
@@ -22,18 +22,13 @@ class PromptZipEnv(EnvClient):
         **kwargs: Any,
     ) -> "PromptZipEnv":
         """
-        Spin up a local Docker container and return a connected client.
-        Test manually before push:
-            env = PromptZipEnv.from_docker_image(env_vars={"GROQ_API_KEY": "..."})
-            with env.sync() as client:
+        Return a client connected to a locally-running Docker container.
+        The caller is responsible for starting the container first:
+
+            docker run -p 8000:8000 -e GROQ_API_KEY=... prompt_zip_env:latest
+
+        Then connect:
+            with PromptZipEnv.from_docker_image().sync() as client:
                 obs = client.reset()
         """
-        from openenv.core.providers.local_docker import LocalDockerProvider  # type: ignore
-
-        provider = LocalDockerProvider(
-            image=image_name,
-            port=port,
-            env_vars=env_vars or {},
-            timeout=timeout,
-        )
         return cls(base_url=f"http://localhost:{port}", **kwargs)

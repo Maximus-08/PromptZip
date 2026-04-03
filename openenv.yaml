@@ -5,8 +5,8 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
-action_schema: prompt_zip_env.models.PromptZipAction
-observation_schema: prompt_zip_env.models.PromptZipObservation
+action_schema: models.PromptZipAction
+observation_schema: models.PromptZipObservation
 tags:
   - openenv
   - prompt-compression

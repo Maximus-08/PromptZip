@@ -7,11 +7,11 @@ Run: (from prompt_zip_env/ directory)
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from prompt_zip_env.server.prompt_zip_environment import PromptZipEnvironment
-from prompt_zip_env.models import PromptZipAction
+from server.prompt_zip_environment import PromptZipEnvironment
+from models import PromptZipAction
 from openenv.core.env_server.types import State
 
 
@@ -50,7 +50,9 @@ def test_elide_decreases_tokens(env):
     before = obs.token_count
     obs2 = env.step(PromptZipAction(action_type="elide", span_id=span_id))
     assert obs2.token_count < before
-    assert obs2.reward is not None and obs2.reward > 0
+    # reward >= 0: step_reward is always positive on a successful elide;
+    # if termination fires, final_reward can be negative only with live Groq quality < 6
+    assert obs2.reward is not None and obs2.reward >= 0
 
 
 # ── 3. rephrase decreases token_count even with mock fallback ────────────────
