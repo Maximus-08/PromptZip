@@ -1,0 +1,6 @@
+# requirements.txt — authoritative for Docker; pyproject.toml mirrors these.
+# If you add a dep here, add it to pyproject.toml[project.dependencies] too.
+openenv-core>=0.2.0
+groq
+fastapi
+uvicorn[standard]

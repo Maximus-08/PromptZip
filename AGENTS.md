@@ -11,7 +11,7 @@ PromptZip RL has **four components** that interact within the environment:
 | **Target LLM** | Generates outputs from both original and compressed prompts for comparison | ❌ No |
 | **LLM Judge** | Scores quality of compressed output vs. original output | ❌ No |
 
-Neither the Rewrite LLM, Target LLM, nor Judge has access to external APIs at runtime. All run inside the Docker container.
+All three use the Groq API at runtime; a deterministic mock fallback is used if GROQ_API_KEY is unavailable. All run inside the Docker container.
 
 ---
 
@@ -103,8 +103,8 @@ A small, frozen language model called by the **environment** to execute `rephras
 
 | Property | Value |
 | --- | --- |
-| **Model** | Llama-3.2-3B or Qwen2.5-3B |
-| **Runtime** | Ollama (local, no GPU needed) or Groq free-tier API |
+| **Model** | Llama-3.3-70b-versatile (via Groq) |
+| **Runtime** | Groq API (fallback: deterministic mock returns first 60% of words) |
 | **Temperature** | 0 (deterministic output) |
 | **Prompt template** | `"Rewrite the following to convey the same meaning in fewer tokens. Return only the rewritten text, no explanation.\n\n{span}"` |
 | **Trainable** | No — frozen throughout |
@@ -128,8 +128,8 @@ A small, frozen language model that generates text outputs from both the **origi
 
 | Property | Value |
 | --- | --- |
-| **Model** | Llama-3.2-1B (lightweight; output quality is not the goal, consistency is) |
-| **Runtime** | Ollama (local) or Groq free-tier API |
+| **Model** | Llama-3.1-8b-instant (via Groq) |
+| **Runtime** | Groq API (fallback: returns "[mock output]") |
 | **Temperature** | 0 (deterministic — same prompt always produces same output) |
 | **Trainable** | No — frozen throughout |
 
@@ -266,5 +266,5 @@ sequenceDiagram
 | **Trainable** | ✅ Yes — GRPO each episode | ❌ No — frozen | ❌ No — frozen | ❌ No — frozen |
 | **Runs per episode** | Multiple `step()` calls | Once per `rephrase` step | Twice (reset + termination) | Once at episode end |
 | **Temperature** | N/A | 0 (deterministic) | 0 (deterministic) | 0 (deterministic) |
-| **GPU required** | Yes (for GRPO training) | No (Ollama or Groq) | No (Ollama or Groq) | No (Ollama or Groq) |
-| **Deployed as** | Trained separately; weights loaded into container | Part of Docker container | Part of Docker container | Part of Docker container |
+| **GPU required** | Yes (for GRPO training) | No | No | No |
+| **Deployed as** | Trained separately; weights loaded into container | Groq API / Mock | Groq API / Mock | Groq API / Mock |

@@ -1,0 +1,18 @@
+[project]
+name = "prompt_zip_env"
+version = "0.1.0"
+description = "RL environment for compressing LLM prompts via elide/rephrase/preserve actions"
+requires-python = ">=3.10"
+
+dependencies = [
+    "openenv-core>=0.2.0",
+    "groq",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["prompt_zip_env*"]

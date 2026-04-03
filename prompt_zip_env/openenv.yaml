@@ -1,0 +1,13 @@
+spec_version: 1
+name: prompt_zip_env
+description: "RL environment for learning to compress LLM prompts via elide/rephrase/preserve actions"
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+action_schema: prompt_zip_env.models.PromptZipAction
+observation_schema: prompt_zip_env.models.PromptZipObservation
+tags:
+  - openenv
+  - prompt-compression
+  - rl-environment

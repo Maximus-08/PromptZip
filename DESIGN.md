@@ -44,7 +44,6 @@ These typed Pydantic models implement OpenEnv's base classes and are required fo
 ### Action
 
 ```python
-```python
 from openenv.core.models import Action
 
 class PromptZipAction(Action):
@@ -167,22 +166,22 @@ Dataset is versioned and published to Hugging Face Hub at `promptzip/prompt-bloa
 1. reset() → Load: "I would like you to please provide me with a very
    detailed and comprehensive summary of the main points covered in the
    following text. Please make sure to be thorough..." (68 tokens)
-   spans = ["I would like you to please provide me with a very detailed
-             and comprehensive summary of", "the main points covered in
-             the following text.", "Please make sure to be thorough..."]
+   spans = {"uuid-1": "I would like you to please provide me with a very detailed
+             and comprehensive summary of", "uuid-2": "the main points covered in
+             the following text.", "uuid-3": "Please make sure to be thorough..."}
    original_output = Target LLM("I would like you to...") → cached
 
 2. Agent observes: PromptZipObservation {task_type: "summarization", budget: 20 tokens}
 
-3. step(PromptZipAction(action_type="elide", span_index=0))
+3. step(PromptZipAction(action_type="elide", span_id="uuid-1"))
    → "the main points covered in the following text. Please make sure to be thorough..."
    → step_reward = (68 - 42) / 68 × 0.5 = +0.19
 
-4. step(PromptZipAction(action_type="elide", span_index=2))
+4. step(PromptZipAction(action_type="elide", span_id="uuid-3"))
    → "the main points covered in the following text."
    → step_reward = (42 - 12) / 68 × 0.5 = +0.22
 
-5. step(PromptZipAction(action_type="rephrase", span_index=0)) → "Summarize:"
+5. step(PromptZipAction(action_type="rephrase", span_id="uuid-1")) → "Summarize:"
    → step_reward = (12 - 3) / 68 × 0.5 = +0.07
 
 6. token_count (3) ≤ budget (20) → done=True, episode terminates
@@ -202,12 +201,12 @@ Dataset is versioned and published to Hugging Face Hub at `promptzip/prompt-bloa
 
 ```mermaid
 graph TD
-    DS["Prompt Dataset<br/>(promptzip/prompt-bloat-v1)"]
+    DS["Prompt Dataset<br/>(Hardcoded list)"]
     ENV["OpenEnv Environment<br/>(PromptZipEnv)"]
-    RW["Rewrite LLM<br/>(Llama-3.2-3B, temp=0)"]
-    TGT["Target LLM<br/>(Llama-3.2-1B, temp=0)<br/>generates outputs for both prompts"]
+    RW["Rewrite LLM<br/>(Groq Llama-3.3-70b/Mock)"]
+    TGT["Target LLM<br/>(Groq Llama-3.1-8b/Mock)<br/>generates outputs for both prompts"]
     AGENT["RL Agent<br/>(policy + span selector)"]
-    JUDGE["LLM Judge<br/>(Qwen2.5-7B, frozen, temp=0)"]
+    JUDGE["LLM Judge<br/>(Groq Llama-3.3-70b/Mock)"]
     TRAIN["Training Loop<br/>(TRL / GRPO)"]
 
     DS -->|"reset()"| ENV
@@ -229,11 +228,11 @@ graph TD
 
 | Component | Implementation |
 | --- | --- |
-| **Container** | Single Docker image (FastAPI + Python) via `openenv` CLI |
+| **Container** | Single Docker image (FastAPI + Python) built via openenv |
 | **Platform** | Hugging Face Spaces |
-| **Rewrite LLM** | Llama-3.2-3B via Ollama (local) or Groq free tier (API) |
-| **Target LLM** | Llama-3.2-1B via Ollama (local) or Groq free tier — generates outputs from both prompts |
-| **Judge LLM** | Qwen2.5-7B-Instruct, frozen, temperature=0, single call |
+| **Rewrite LLM** | Groq API (`llama-3.3-70b-versatile`) or mock fallback |
+| **Target LLM** | Groq API (`llama-3.1-8b-instant`) or mock fallback |
+| **Judge LLM** | Groq API (`llama-3.3-70b-versatile`) or mock fallback |
 | **Training** | TRL / Torchforge GRPO pipeline |
-| **GPU requirement** | Not required to *run the environment*; required for GRPO policy training |
-| **Dataset** | `promptzip/prompt-bloat-v1` on Hugging Face Hub — 500 prompts, 4 task types |
+| **GPU requirement** | Not required for env; required for policy config |
+| **Dataset** | 16 hardcoded bloated prompts directly in the env file |
