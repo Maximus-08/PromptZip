@@ -7,7 +7,13 @@ requires-python = ">=3.10"
 dependencies = [
     "openenv-core>=0.2.0",
     "groq",
+    "fastapi",
+    "uvicorn[standard]",
+    "openai>=1.0.0",
 ]
+
+[project.scripts]
+server = "server.app:main"
 
 [build-system]
 requires = ["setuptools>=61"]

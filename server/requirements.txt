@@ -4,3 +4,4 @@ openenv-core>=0.2.0
 groq
 fastapi
 uvicorn[standard]
+openai>=1.0.0

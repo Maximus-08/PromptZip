@@ -2,16 +2,10 @@
 
 ## Overview
 
-PromptZip RL has **four components** that interact within the environment:
-
-| Component | Role | Trainable |
-| --- | --- | --- |
-| **Compression Agent** | RL policy being trained; selects actions on prompt spans | ✅ Yes |
-| **Rewrite LLM** | Execution primitive; rephrases spans on demand | ❌ No |
-| **Target LLM** | Generates outputs from both original and compressed prompts for comparison | ❌ No |
-| **LLM Judge** | Scores quality of compressed output vs. original output | ❌ No |
-
-All three use the Groq API at runtime; a deterministic mock fallback is used if GROQ_API_KEY is unavailable. All run inside the Docker container.
+PromptZip has **two agents** that operate within each episode: the **Compression Agent**
+(the policy being trained or evaluated) and the **LLM Judge** (the frozen quality
+evaluator that produces the final reward signal). They operate in a closed loop — one
+compresses span-by-span, the other scores the result at episode end.
 
 ---
 
@@ -19,121 +13,79 @@ All three use the Groq API at runtime; a deterministic mock fallback is used if 
 
 ### Role
 
-The primary agent being trained. It observes a bloated prompt (pre-segmented into spans) and iteratively selects an action and a target span to reduce token count while preserving meaning.
+The primary agent. It observes a bloated LLM prompt segmented into UUID-keyed sentence
+spans, and iteratively applies compression actions to reduce token count while
+preserving meaning. At inference time, this is the LLM driven by `inference.py` via
+the OpenAI-compatible client.
 
 ### Observation Space
 
-The agent receives a `PromptZipObservation` object (subclasses OpenEnv's `Observation`):
-
 ```python
-class PromptZipObservation(Observation):
-    done: bool = False
-    reward: float | int | None = None
-    metadata: dict = {}
-    prompt_text: str           # Current full prompt text
-    spans: dict[str, str]      # {uuid: span_text} — stable IDs
-    token_count: int           # Current token count (approx)
-    task_type: str             # "summarization" | "code_gen" | "reasoning" | "qa"
-    token_budget: int          # Target token count to stay under
-    action_history: list       # [(action_type, span_id), ...] — previous steps
-    locked_spans: list[str]    # UUIDs of preserved spans
+PromptZipObservation(
+    prompt_text: str,           # Current full prompt text (spans joined)
+    spans: dict[str, str],      # {uuid: span_text} — stable UUIDs across steps
+    token_count: int,           # Approximate current token count
+    task_type: str,             # "summarization" | "code_gen" | "reasoning" | "qa"
+    token_budget: int,          # Target: episode ends when token_count ≤ this
+    action_history: list[dict], # [{"action_type": ..., "span_id": ...}, ...]
+    locked_spans: list[str],    # UUIDs that cannot be targeted again
+    done: bool,                 # True when episode has ended
+    reward: float | None,       # Reward from last step (None at reset)
+    metadata: dict,             # Info dict — termination reason, final_reward, etc.
+)
 ```
 
 ### Action Space
 
-The agent outputs a single `PromptZipAction` per step (subclasses OpenEnv's `Action`):
-
 ```python
-class PromptZipAction(Action):
-    action_type: Literal["rephrase", "elide", "preserve"]
-    span_id: str  # UUID key into spans dict
+PromptZipAction(
+    action_type: Literal["rephrase", "elide", "preserve"],
+    span_id: str,   # UUID of the target span (must be in obs.spans and not locked)
+)
 ```
 
-| action_type | Description | Execution mechanism | When the agent learns to use it |
-| --- | --- | --- | --- |
-| `rephrase` | Rewrite the selected span in fewer tokens | Environment calls Rewrite LLM with the span | Verbose instructions, formal register |
-| `elide` | Delete the selected span entirely | Environment removes span from `spans[]` and rebuilds `prompt_text` | Polite preambles, redundant boilerplate |
-| `preserve` | Lock the selected span against future edits | Environment adds span index to `locked_spans`; future steps skip it | Factual content, task-critical instructions |
+| Action | Effect on Prompt | Step Reward | Use When |
+|---|---|---|---|
+| `elide` | Span deleted permanently | `(prev_tokens - new_tokens) / original × 0.5` | Polite preambles, filler |
+| `rephrase` | Span rewritten in fewer words by Groq | `(prev_tokens - new_tokens) / original × 0.5` | Verbose but necessary content |
+| `preserve` | Span added to `locked_spans`, no text change | `0.0` | Task-critical instructions, factual data |
 
-**Why three actions, not four:** The original design included both `rephrase` and `compress` as separate actions. These are functionally identical — both rewrite text to fewer tokens — so they are merged into `rephrase`. The `chunk` action is excluded from Round 1; it requires a fundamentally different episode structure and will be added in v2.
+**Invalid actions** (targeting a non-existent or already-locked span) return
+`reward = -0.1` and leave the prompt unchanged.
 
-### Behavior
+### Decision Loop
 
-* Takes **multiple steps per episode** — one `PromptZipAction` per `step()` call
-* Continues until: `token_count ≤ token_budget`, `quality_score < 6.0` (early termination), `max_steps = 2 × len(spans)` is reached, or short-circuit conditions met (all spans locked or empty prompt)
-* `step()` returns `PromptZipObservation` (Observation base provides done, reward, metadata)
-* Policy and span selector weights are updated jointly via **GRPO** through TRL/Torchforge
+At each step the agent must:
 
-### Reward Signal
+1. Inspect `obs.spans` to see available span texts and their UUIDs
+2. Inspect `obs.locked_spans` to filter out already-committed spans
+3. Inspect `obs.token_count` vs `obs.token_budget` to gauge urgency
+4. Choose one `(action_type, span_id)` pair
 
-**Intermediate reward** (in `StepResult.reward` after each `step()`):
+The episode ends when `done=True` in the returned observation. The agent should
+**always check `obs.done` before calling `step()` again**.
 
-```
-step_reward = (prev_token_count - new_token_count) / original_token_count × 0.5
-```
+### Difficulty Tiers
 
-Positive when tokens are reduced. Negative when a bad rephrase increases tokens.
+The environment serves three task tiers. `reset(difficulty=...)` targets a specific
+tier for reproducible grader runs:
 
-**Final reward** (in `StepResult.reward` at episode termination):
+| Difficulty | Task Type | Token Budget | Challenge |
+|---|---|---|---|
+| `"easy"` | QA | 10–13 | Short prompt, obvious filler — single elide often wins |
+| `"medium"` | Summarization, Code Gen | 12–22 | Longer prompts, some spans are load-bearing |
+| `"hard"` | Reasoning | 14–20 | Multi-step structure — wrong compression breaks the answer chain |
 
-```
-final_reward = quality_score × (tokens_saved / tokens_original)
-```
+### Learned Strategies (Emergent from Reward Signal)
 
-If `quality_score < 6.0`: additional penalty of `−5.0` applied.
+A trained agent develops task-conditioned heuristics:
 
-### Learned Strategies (Emergent)
-
-| Task Type | Learned Priority |
-| --- | --- |
-| Summarization | Elide request framing first; preserve source content spans |
-| Code generation | Preserve system prompt spans; rephrase user instruction spans |
-| Multi-step reasoning | Preserve chain-of-thought structure; elide padding and meta-instructions |
-| Q&A | Elide polite preamble; preserve the question core |
-
----
-
-## Rewrite LLM (Execution Primitive)
-
-### Role
-
-A small, frozen language model called by the **environment** to execute `rephrase` actions. It is not an RL agent and does not learn.
-
-### Spec
-
-| Property | Value |
-| --- | --- |
-| **Model** | Llama-3.3-70b-versatile (via Groq) |
-| **Runtime** | Groq API (fallback: deterministic mock returns first 60% of words) |
-| **Temperature** | 0 (deterministic output) |
-| **Prompt template** | `"Rewrite the following to convey the same meaning in fewer tokens. Return only the rewritten text, no explanation.\n\n{span}"` |
-| **Trainable** | No — frozen throughout |
-
-Called only for `rephrase` steps. `elide` and `preserve` require no LLM call.
-
----
-
-## Target LLM (Output Generator)
-
-### Role
-
-A small, frozen language model that generates text outputs from both the **original prompt** and the **compressed prompt**. These outputs are what the LLM Judge compares to produce the quality score. Without this component, there is nothing to evaluate.
-
-### When It Runs
-
-* **At `reset()`**: Generates `original_output` from the bloated prompt and **caches it** for the episode. This avoids re-generating the baseline on every step.
-* **At episode termination**: Generates `compressed_output` from the final compressed prompt.
-
-### Spec
-
-| Property | Value |
-| --- | --- |
-| **Model** | Llama-3.1-8b-instant (via Groq) |
-| **Runtime** | Groq API (fallback: returns "[mock output]") |
-| **Temperature** | 0 (deterministic — same prompt always produces same output) |
-| **Trainable** | No — frozen throughout |
-
-> **Why a small model?** The Target LLM is called twice per episode (once at reset, once at termination). A lighter model keeps environment latency low. The judge evaluates semantic equivalence, not output quality, so the baseline doesn't need to be "good" — only consistent.
+| Task Type | What to Elide First | What to Preserve |
+|---|---|---|
+| QA | "I was hoping you might help...", "I would really appreciate..." | The actual question |
+| Summarization | "Please be thorough", "Do not skip minor details" | Source text content |
+| Code Gen | "If it is not too much trouble...", "Feel free to add..." | Function spec, data types |
+| Reasoning | "Could you be so kind as to...", padding phrases | All numbers, logical structure |
 
 ---
 
@@ -141,130 +93,161 @@ A small, frozen language model that generates text outputs from both the **origi
 
 ### Role
 
-A frozen LLM that runs **once per episode, at termination**. It receives the original and compressed prompt outputs from the Target LLM and returns a quality score.
+A frozen Groq-hosted LLM that acts as the environment's **grader**. It is called once
+per episode at termination (when `token_count ≤ budget` or step limit reached). It
+compares the output produced by the compressed prompt against the output produced by
+the original prompt and returns a quality score.
+
+### Model
+
+`llama-3.3-70b-versatile` via Groq API (10-second timeout).
+Fallback if Groq unavailable: returns `0.0` (safe no-reward fallback).
 
 ### Input
 
 ```python
-{
-  "original_prompt": str,       # The uncompressed prompt
-  "compressed_prompt": str,     # The agent's final compressed version
-  "original_output": str,       # Target LLM output from original prompt
-  "compressed_output": str,     # Target LLM output from compressed prompt
-  "task_type": str              # Context for evaluation rubric
+judge_input = {
+    "original_prompt":    str,  # The uncompressed prompt from reset()
+    "compressed_prompt":  str,  # The agent's final prompt text
+    "original_output":    str,  # Output generated from original prompt at reset()
+    "compressed_output":  str,  # Output generated from compressed prompt now
+    "task_type":          str,  # Used to apply the appropriate rubric
 }
 ```
 
 ### Output
 
-```python
-quality_score: float  # 0.0 – 10.0
+```
+raw_score: float  # 0.0 – 10.0  (normalized to 0.0–1.0 before reward computation)
 ```
 
 ### Scoring Rubric
 
-The judge evaluates along four dimensions, each scored 0–2.5:
+The judge prompt instructs the model to score on four equally-weighted dimensions:
 
-| Dimension | What it checks |
-| --- | --- |
-| **Semantic preservation** | Does the compressed output cover the same key points? |
-| **Factual accuracy** | Are all facts from the baseline present and correct? |
-| **Completeness** | Is anything meaningful omitted? |
-| **Coherence** | Is the compressed output well-structured and unambiguous? |
+| Dimension | Max | What It Checks |
+|---|---|---|
+| Semantic preservation | 2.5 | Do both outputs cover the same key points? |
+| Factual accuracy | 2.5 | Are all facts from the original preserved? |
+| Completeness | 2.5 | Is anything meaningful omitted? |
+| Coherence | 2.5 | Is the compressed output well-structured? |
 
-`quality_score = sum of four dimension scores` (0–10).
+### Reward Computation
+
+```python
+quality    = raw_score / 10.0                              # → 0.0–1.0
+tokens_saved = original_token_count - current_token_count
+final      = quality * (tokens_saved / original_token_count)
+if quality < 0.6:
+    final -= 0.5                                           # penalty for quality collapse
+final      = max(-1.0, min(1.0, final))                    # hard clamp
+```
 
 ### Design Decisions
 
-**Frozen judge:** The judge does not learn or update during training, preventing reward hacking.
+The judge is **frozen** — it does not learn and its weights are never updated. This
+prevents the compression agent from reward-hacking by co-adapting with the judge.
 
-**Temperature=0, single call:** The judge runs once at `temperature=0`. Running 3 calls at `temperature=0` would produce 3 identical scores (deterministic model) with no noise-reduction benefit and 3× latency cost. If non-determinism is needed in future, raise temperature and use a mean of 3 samples.
-
-**Runs once per episode, at termination:** Calling the judge at every step would be cost-prohibitive. Intermediate shaping comes from the token-delta step reward; the judge provides the terminal quality signal only.
+The judge is only called when the episode terminates via budget or step limit. Short-
+circuit terminations (all spans locked without compression, empty prompt) skip the
+judge entirely and return fixed rewards (`0.0` and `−0.50` respectively), saving API
+calls on trivially bad episodes.
 
 ---
 
 ## Agent Interaction Loop
 
 ```
-sequenceDiagram
-    participant D as Dataset
-    participant E as Environment
-    participant TGT as Target LLM (frozen)
-    participant RW as Rewrite LLM (frozen)
-    participant C as Compression Agent
-    participant J as LLM Judge (frozen)
-
-    D->>E: reset() — load bloated prompt, segment into spans
-    E->>TGT: original prompt → generate original_output (cached)
-    E->>C: PromptZipObservation {prompt, spans[], tokens, budget}
-    loop Until done=True
-        C->>E: step(PromptZipAction(action_type, span_id))
-        alt action_type == rephrase
-            E->>RW: span text
-            RW->>E: rewritten span (temp=0)
-        else action_type == elide
-            E->>E: remove span from spans dict
-        else action_type == preserve
-            E->>E: add span_id to locked_spans
-        end
-        E->>C: Updated PromptZipObservation (with step_reward, done)
-    end
-    E->>TGT: compressed prompt → generate compressed_output
-    TGT->>E: compressed_output
-    E->>J: {original_prompt, compressed_prompt, original_output, compressed_output, task_type}
-    J->>E: quality_score (0–10)
-    E->>C: StepResult(observation, final_reward=[quality × (saved/total) ± penalty], done=True)
-    Note over C: Policy + span selector updated via GRPO
+Dataset
+  │
+  │  reset(difficulty="medium")
+  ▼
+Environment
+  │  PromptZipObservation
+  │  {spans, token_count, token_budget, task_type, ...}
+  ▼
+Compression Agent  ─────────────────────────────────────────────┐
+  │                                                              │
+  │  step(PromptZipAction(action_type, span_id))                 │
+  ▼                                                              │
+Environment                                                      │
+  │  applies action to spans                                     │
+  │  computes step_reward                                        │
+  │  checks termination                                          │
+  │                                                              │
+  ├──[not done]──► Updated PromptZipObservation ────────────────►┘
+  │
+  └──[done: budget or step limit]
+       │
+       ├─► Target LLM generates compressed_output
+       │
+       ├─► LLM Judge scores (compressed vs original)
+       │     quality_score → 0.0–1.0
+       │
+       └─► final_reward = quality × (tokens_saved / total)
+             (clamped, penalised if quality < 0.6)
 ```
 
 ---
 
-## Reward Signal Flow
+## What the Compression Agent Receives at Each Step
 
 ```
-                    Compression Agent
-                          │
-                  step(PromptZipAction) × N
-                          │
-                          ▼
-              ┌─────────────────────────────┐
-              │   Environment               │
-              │   executes action on span   │
-              │   StepResult.reward =       │
-              │     token_delta × 0.5       │
-              └────────────┬────────────────┘
-                           │ (at termination)
-                           ▼
-              ┌─────────────────────────────┐
-              │   Target LLM (frozen)       │
-              │   → compressed_output       │
-              └────────────┬────────────────┘
-                           │
-              ┌─────────────────────────────┐
-              │   LLM Judge (frozen)        │
-              │   temp=0, single call       │
-              │   → quality_score (0–10)    │
-              └────────────┬────────────────┘
-                           │
-       final_reward = quality × (saved / total) [± penalty]
-                           │
-                           ▼
-              ┌─────────────────────────────┐
-              │   GRPO / TRL                │
-              │   policy + span selector    │
-              │   weight update             │
-              └─────────────────────────────┘
+After reset():
+  obs.done          = False
+  obs.reward        = None          ← no reward yet
+  obs.token_count   = 42            ← current token estimate
+  obs.token_budget  = 20            ← must get below this
+  obs.spans         = {             ← UUID → text mapping
+    "a1b2...": "I was hoping you might be able to help me answer a question.",
+    "c3d4...": "I would greatly appreciate a concise and accurate response.",
+    "e5f6...": "Here is my question:",
+    "g7h8...": "What is the capital city of France?"
+  }
+  obs.locked_spans  = []
+  obs.action_history = []
+
+After step(elide, "a1b2..."):
+  obs.done          = False
+  obs.reward        = +0.143        ← step_reward for tokens removed
+  obs.token_count   = 30
+  obs.spans         = {             ← span a1b2 gone
+    "c3d4...": "I would greatly appreciate a concise and accurate response.",
+    "e5f6...": "Here is my question:",
+    "g7h8...": "What is the capital city of France?"
+  }
+
+After step(elide, "c3d4..."):
+  obs.done          = True          ← token_count=18 ≤ budget=20
+  obs.reward        = +0.640        ← step_reward + final_reward
+  obs.metadata      = {"info": "episode terminated", "final_reward": 0.497}
 ```
 
 ---
 
-## Key Constraints
+## Agent Constraints Summary
 
-| Property | Compression Agent | Rewrite LLM | Target LLM | LLM Judge |
-| --- | --- | --- | --- | --- |
-| **Trainable** | ✅ Yes — GRPO each episode | ❌ No — frozen | ❌ No — frozen | ❌ No — frozen |
-| **Runs per episode** | Multiple `step()` calls | Once per `rephrase` step | Twice (reset + termination) | Once at episode end |
-| **Temperature** | N/A | 0 (deterministic) | 0 (deterministic) | 0 (deterministic) |
-| **GPU required** | Yes (for GRPO training) | No | No | No |
-| **Deployed as** | Trained separately; weights loaded into container | Groq API / Mock | Groq API / Mock | Groq API / Mock |
+| Property | Compression Agent | LLM Judge |
+|---|---|---|
+| Trainable | ✅ Weights updated by RL loop | ❌ Frozen throughout |
+| Runs per episode | Multiple `step()` calls | Once at terminal step |
+| External API | `API_BASE_URL` (inference.py) | Groq (`GROQ_API_KEY`) |
+| Offline fallback | Deterministic mock obs | Returns `0.0` quality |
+| GPU required | ❌ No | ❌ No |
+
+---
+
+## Running the Baseline Agent
+
+```bash
+export API_BASE_URL="https://api.openai.com/v1"   # or any OpenAI-compatible endpoint
+export MODEL_NAME="gpt-4o-mini"
+export HF_TOKEN="your-api-key"
+export GROQ_API_KEY="your-groq-key"               # optional — mock fallback if unset
+
+python inference.py
+```
+
+The script runs all 16 episodes (easy → medium → hard) sequentially, logs each step's
+action and reward, and prints a final score summary. Runtime is under 5 minutes on
+2 vCPU / 8 GB with the Groq backend active.

@@ -31,7 +31,7 @@ DATASET: list[dict] = [
     # ── summarization (4) ──────────────────────
     {
         "task_type": "summarization",
-        "token_budget": 15,
+        "token_budget": 30,  # ~55% of ~55 token prompt
         "prompt": (
             "I would like you to please provide me with a very detailed and comprehensive "
             "summary of the main points covered in the following text. "
@@ -45,7 +45,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 12,
+        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "Could you kindly take a moment to summarize, in as much detail as possible, "
             "the content of the following document? "
@@ -59,7 +59,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 14,
+        "token_budget": 29,  # ~55% of ~53 token prompt
         "prompt": (
             "For the purposes of this task, I need you to summarize the following text "
             "as thoroughly as possible, making sure not to leave out any crucial details. "
@@ -73,7 +73,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 10,
+        "token_budget": 26,  # ~55% of ~47 token prompt
         "prompt": (
             "Please help me by summarizing the passage below. "
             "I would really appreciate if you could be thorough and cover everything. "
@@ -88,7 +88,7 @@ DATASET: list[dict] = [
     # ── code_gen (4) ──────────────────────────
     {
         "task_type": "code_gen",
-        "token_budget": 20,
+        "token_budget": 30,  # ~55% of ~55 token prompt
         "prompt": (
             "I am hoping that you could help me with a Python programming task. "
             "I would really appreciate it if you could write a function that "
@@ -99,7 +99,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 18,
+        "token_budget": 27,  # ~55% of ~49 token prompt
         "prompt": (
             "Could you be so kind as to write a Python script for me? "
             "I need a function called `flatten` that takes a nested list "
@@ -110,7 +110,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 22,
+        "token_budget": 34,  # ~55% of ~62 token prompt
         "prompt": (
             "I am working on a project and I would be extremely grateful "
             "if you could help me write a Python class for a simple stack data structure. "
@@ -121,7 +121,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 16,
+        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "I was wondering if perhaps you might be able to assist me with writing "
             "a Python function that checks whether a given string is a palindrome. "
@@ -132,7 +132,7 @@ DATASET: list[dict] = [
     # ── reasoning (4) ─────────────────────────
     {
         "task_type": "reasoning",
-        "token_budget": 18,
+        "token_budget": 33,  # ~55% of ~60 token prompt
         "prompt": (
             "I would like you to please think through the following problem "
             "step by step, being careful to show all of your reasoning. "
@@ -145,7 +145,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 15,
+        "token_budget": 29,  # ~55% of ~53 token prompt
         "prompt": (
             "Could you kindly reason through the following logical puzzle step by step? "
             "Please show every inference so your reasoning is easy to follow. "
@@ -158,7 +158,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 20,
+        "token_budget": 33,  # ~55% of ~60 token prompt
         "prompt": (
             "I am presenting you with a multi-step arithmetic problem "
             "and I would be grateful if you could walk me through each step carefully. "
@@ -170,7 +170,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 14,
+        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "Please take the time to carefully and thoroughly reason through the following question. "
             "Show your work and explain each logical step. "
@@ -182,7 +182,7 @@ DATASET: list[dict] = [
     # ── qa (4) ────────────────────────────────
     {
         "task_type": "qa",
-        "token_budget": 10,
+        "token_budget": 20,  # ~55% of ~36 token prompt
         "prompt": (
             "I was hoping you might be able to help me answer a question. "
             "I would greatly appreciate a concise and accurate response. "
@@ -192,7 +192,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 12,
+        "token_budget": 23,  # ~55% of ~42 token prompt
         "prompt": (
             "Could you please be so kind as to tell me the answer to the following question? "
             "I understand this may be a simple question but I want to make sure I get it right. "
@@ -202,7 +202,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 11,
+        "token_budget": 22,  # ~55% of ~40 token prompt
         "prompt": (
             "I would really appreciate it if you could help me out with a trivia question. "
             "Please give me a direct and accurate answer. "
@@ -212,7 +212,7 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 13,
+        "token_budget": 24,  # ~55% of ~44 token prompt
         "prompt": (
             "Thank you so much for taking the time to assist me with this. "
             "I have a factual question and I am hoping you can provide a clear answer. "
@@ -230,17 +230,50 @@ def _count_tokens(text: str) -> int:
 
 
 # ──────────────────────────────────────────────
-# Sentence splitter
+# Sentence splitter — preserves separators
 # ──────────────────────────────────────────────
-_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])|\n\n+")
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+_PARA_SEP = "\n\n"
 
-def _segment(text: str) -> dict[str, str]:
-    """Split text into sentences and return a {uuid: sentence} dict."""
-    raw = _SPLIT_RE.split(text.strip())
-    parts = [s.strip() for s in raw if s.strip()]
+def _segment(text: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Split text into spans, preserving the separator used after each span.
+
+    Returns:
+        spans    - {uuid: span_text}
+        seps     - {uuid: separator_that_followed_span}  ("" for the last span)
+    """
+    # First split on paragraph breaks to preserve them
+    paragraphs = re.split(r"(\n\n+)", text.strip())
+    parts: list[str] = []
+    part_seps: list[str] = []
+    i = 0
+    while i < len(paragraphs):
+        block = paragraphs[i].strip()
+        sep_after = paragraphs[i + 1] if i + 1 < len(paragraphs) and re.match(r"^\n\n+$", paragraphs[i + 1]) else ""
+        if sep_after:
+            i += 2
+        else:
+            i += 1
+        if not block:
+            continue
+        # Further split paragraph into sentences
+        sentences = _SENT_RE.split(block)
+        for j, s in enumerate(sentences):
+            s = s.strip()
+            if not s:
+                continue
+            parts.append(s)
+            # Only the last sentence of a paragraph gets the paragraph separator
+            part_seps.append(sep_after if j == len(sentences) - 1 else " ")
+
     if not parts:
         parts = [text.strip()]
-    return {str(uuid.uuid4()): part for part in parts}
+        part_seps = [""]
+
+    uuids = [str(uuid.uuid4()) for _ in parts]
+    spans = {u: p for u, p in zip(uuids, parts)}
+    seps = {u: s for u, s in zip(uuids, part_seps)}
+    return spans, seps
 
 
 # ──────────────────────────────────────────────
@@ -287,10 +320,8 @@ class _GroqClient:
             ],
         )
         if not result:
-            # Mock: first 60% of words, minimum 1
-            words = span.split()
-            keep = max(1, int(len(words) * 0.6))
-            return " ".join(words[:keep])
+            # Mock fallback: return span unchanged (identity) rather than a truncated fragment
+            return span
         return result
 
     def generate(self, prompt: str) -> str:
@@ -327,12 +358,14 @@ class _GroqClient:
             messages=[{"role": "user", "content": judge_prompt}],
         )
         if not result:
-            return 7.0  # mock fallback
+            log.warning("Groq judge call failed — using 0.0 fallback (no unearned reward)")
+            return 0.0
         try:
             score = float(result.strip().split()[0])
             return max(0.0, min(10.0, score))
         except (ValueError, IndexError):
-            return 7.0
+            log.warning("Groq judge parsing failed — using 0.0 fallback")
+            return 0.0
 
 
 # ──────────────────────────────────────────────
@@ -351,6 +384,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         # Episode state
         self._spans: dict[str, str] = {}
+        self._seps: dict[str, str] = {}  # separator after each span (" " or "\n\n")
         self._locked_spans: list[str] = []
         self._action_history: list[dict] = []
         self._task_type: str = "summarization"
@@ -365,7 +399,15 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     # ── internal helpers ──────────────────────
 
     def _prompt_text(self) -> str:
-        return " ".join(self._spans.values())
+        """Reassemble spans preserving their original separators."""
+        if not self._spans:
+            return ""
+        parts = []
+        for uid, text in self._spans.items():
+            parts.append(text)
+            sep = self._seps.get(uid, " ")
+            parts.append(sep if sep else " ")
+        return "".join(parts).rstrip()
 
     def _token_count(self) -> int:
         return _count_tokens(self._prompt_text())
@@ -395,16 +437,18 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         compressed_prompt = self._prompt_text()
         compressed_output = self._groq.generate(compressed_prompt)
         tokens_saved = self._original_token_count - self._token_count()
-        quality = self._groq.judge(
-            original_prompt=self._original_prompt,  # fixed: stored at reset(), not re-indexed
+        raw_score = self._groq.judge(
+            original_prompt=self._original_prompt,
             compressed_prompt=compressed_prompt,
             original_output=self._original_output,
             compressed_output=compressed_output,
             task_type=self._task_type,
         )
+        quality = raw_score / 10.0  # normalize 0–10 → 0.0–1.0
         final = quality * (tokens_saved / self._original_token_count) if self._original_token_count else 0.0
-        if quality < 6.0:
-            final -= 5.0
+        if quality < 0.6:
+            final -= 0.5  # penalty for quality collapse
+        final = max(-1.0, min(1.0, final))  # hard clamp
         return final
 
     # ── OpenEnv API ───────────────────────────
@@ -413,6 +457,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self,
         seed: Optional[int] = None,
         episode_id: Optional[str] = None,
+        difficulty: str = "medium",
         **kwargs: Any,
     ) -> PromptZipObservation:
         """Load the next prompt, segment into spans, pre-generate original_output."""
@@ -420,16 +465,27 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._action_history = []
         self._locked_spans = []
 
-        if seed is not None:
-            self._dataset_idx = seed % len(DATASET)
+        # Difficulty-based dataset filtering
+        _tier_map: dict[str, list[str]] = {
+            "easy":   ["qa"],
+            "medium": ["summarization", "code_gen"],
+            "hard":   ["reasoning"],
+        }
+        allowed = _tier_map.get(difficulty, ["summarization", "code_gen"])
+        pool = [e for e in DATASET if e["task_type"] in allowed]
+        if not pool:
+            pool = DATASET  # fallback: use all
 
-        entry = DATASET[self._dataset_idx % len(DATASET)]
+        if seed is not None:
+            self._dataset_idx = seed % len(pool)
+
+        entry = pool[self._dataset_idx % len(pool)]
         self._dataset_idx += 1
         self._task_type = entry["task_type"]
         self._token_budget = entry["token_budget"]
-        self._original_prompt = entry["prompt"]  # stored now, before idx is stale
+        self._original_prompt = entry["prompt"]
 
-        self._spans = _segment(entry["prompt"])
+        self._spans, self._seps = _segment(entry["prompt"])
         self._original_token_count = _count_tokens(entry["prompt"])
         self._initial_span_count = len(self._spans) or 1
 
@@ -440,7 +496,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             step_count=0,
         )
 
-        return self._build_obs(reward=0.0, done=False)
+        return self._build_obs(reward=None, done=False)
 
     def step(
         self,
@@ -452,6 +508,16 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         # Post-done guard
         if self._done:
             return self._build_obs(reward=0.0, done=True, metadata={"info": "episode already done"})
+
+        # Step-limit guard — checked BEFORE action so episodes always terminate
+        if self._state.step_count >= 2 * self._initial_span_count:
+            self._done = True
+            final_reward = self._run_judge_flow()
+            return self._build_obs(
+                reward=final_reward,
+                done=True,
+                metadata={"info": "step limit reached", "final_reward": final_reward},
+            )
 
         self._state.step_count += 1
 
@@ -473,7 +539,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             if not self._spans:
                 self._done = True
                 return self._build_obs(
-                    reward=-5.0,
+                    reward=-0.50,
                     done=True,
                     metadata={"info": "all spans elided — destroying meaning"},
                 )
@@ -494,13 +560,23 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         # ── Termination checks ────────────────
         all_locked = set(self._locked_spans) >= set(self._spans.keys())
         if all_locked:
-            # Short-circuit: no compression achieved → 0 reward, skip judge
-            self._done = True
-            return self._build_obs(
-                reward=0.0,
-                done=True,
-                metadata={"info": "all spans locked — no compression"},
-            )
+            if self._token_count() >= self._original_token_count:
+                # Short-circuit ONLY if absolutely no compression was achieved
+                self._done = True
+                return self._build_obs(
+                    reward=0.0,
+                    done=True,
+                    metadata={"info": "all spans locked without compression — skip judge"},
+                )
+            else:
+                # Compression was achieved, so we must run the judge
+                self._done = True
+                final_reward = self._run_judge_flow()
+                return self._build_obs(
+                    reward=step_reward + final_reward,
+                    done=True,
+                    metadata={"info": "all remaining spans locked, episode terminated", "final_reward": final_reward},
+                )
 
         if self._is_terminated():
             self._done = True

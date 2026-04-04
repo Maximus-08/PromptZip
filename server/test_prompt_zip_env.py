@@ -35,7 +35,7 @@ def test_reset_returns_valid_obs():
     assert isinstance(obs.action_history, list) and len(obs.action_history) == 0
     assert isinstance(obs.locked_spans, list) and len(obs.locked_spans) == 0
     assert obs.done is False
-    assert obs.reward is not None
+    assert obs.reward is None  # no reward at reset — by design
 
 
 # ── 2. elide decreases token_count and returns positive reward ───────────────
@@ -161,3 +161,41 @@ def test_state_property(env):
     assert isinstance(s, State)
     assert s.episode_id is not None
     assert isinstance(s.step_count, int) and s.step_count >= 0
+
+
+# ── 10. difficulty=easy always returns a QA task ──────────────────────────────
+
+def test_difficulty_easy_returns_qa():
+    env = PromptZipEnvironment()
+    for seed in range(4):
+        obs = env.reset(difficulty="easy", seed=seed)
+        assert env._task_type == "qa", f"seed={seed}: expected qa, got {env._task_type}"
+
+
+# ── 11. difficulty=hard always returns a reasoning task ───────────────────────
+
+def test_difficulty_hard_returns_reasoning():
+    env = PromptZipEnvironment()
+    for seed in range(4):
+        obs = env.reset(difficulty="hard", seed=seed)
+        assert env._task_type == "reasoning", f"seed={seed}: expected reasoning, got {env._task_type}"
+
+
+# ── 12. all rewards stay within [-1.0, 1.0] ──────────────────────────────────
+
+def test_reward_in_valid_range():
+    env = PromptZipEnvironment()
+    obs = env.reset()
+    # reset reward is None — not a float, skip checking it
+    assert obs.reward is None
+
+    for _ in range(30):
+        if obs.done:
+            break
+        available = [s for s in obs.spans if s not in obs.locked_spans]
+        if not available:
+            break
+        obs = env.step(PromptZipAction(action_type="elide", span_id=available[0]))
+        if obs.reward is not None:
+            assert -1.0 <= obs.reward <= 1.0, f"reward {obs.reward} out of [-1, 1]"
+

@@ -1,0 +1,269 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 595B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for ghcr.io/meta-pytorch/openenv-base:latest
+#2 DONE 1.6s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 99B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM ghcr.io/meta-pytorch/openenv-base:latest@sha256:3e478c17bcdee6969218c03d0c1986bdb0db9abd4e763a9180b9014b3dde211a
+#4 resolve ghcr.io/meta-pytorch/openenv-base:latest@sha256:3e478c17bcdee6969218c03d0c1986bdb0db9abd4e763a9180b9014b3dde211a 0.0s done
+#4 DONE 0.0s
+
+#5 [2/6] WORKDIR /app
+#5 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 1.61kB done
+#6 DONE 0.0s
+
+#7 [3/6] COPY . /app/env
+#7 DONE 0.0s
+
+#8 [4/6] WORKDIR /app/env
+#8 DONE 0.0s
+
+#9 [5/6] RUN apt-get update && apt-get install -y --no-install-recommends git     && rm -rf /var/lib/apt/lists/*
+#9 0.793 Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]
+#9 1.170 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+#9 1.684 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+#9 1.751 Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9671 kB]
+#9 35.77 Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [5412 B]
+#9 35.82 Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [119 kB]
+#9 36.57 Fetched 10.0 MB in 39s (259 kB/s)
+#9 36.57 Reading package lists...
+#9 37.20 Reading package lists...
+#9 37.82 Building dependency tree...
+#9 37.96 Reading state information...
+#9 38.13 The following additional packages will be installed:
+#9 38.13   git-man libcurl3t64-gnutls liberror-perl libexpat1 libgdbm-compat4t64
+#9 38.14   libngtcp2-16 libngtcp2-crypto-gnutls8 libperl5.40 perl perl-modules-5.40
+#9 38.14 Suggested packages:
+#9 38.14   gettext-base git-doc git-email git-gui gitk gitweb git-cvs git-mediawiki
+#9 38.14   git-svn sensible-utils perl-doc libterm-readline-gnu-perl
+#9 38.14   | libterm-readline-perl-perl make libtap-harness-archive-perl
+#9 38.14 Recommended packages:
+#9 38.14   patch less ssh-client
+#9 38.21 The following NEW packages will be installed:
+#9 38.21   git git-man libcurl3t64-gnutls liberror-perl libexpat1 libgdbm-compat4t64
+#9 38.21   libngtcp2-16 libngtcp2-crypto-gnutls8 libperl5.40 perl perl-modules-5.40
+#9 38.48 0 upgraded, 11 newly installed, 0 to remove and 0 not upgraded.
+#9 38.48 Need to get 19.4 MB of archives.
+#9 38.48 After this operation, 106 MB of additional disk space will be used.
+#9 38.48 Get:1 http://deb.debian.org/debian trixie/main amd64 libexpat1 amd64 2.7.1-2 [108 kB]
+#9 38.92 Get:2 http://deb.debian.org/debian trixie/main amd64 perl-modules-5.40 all 5.40.1-6 [3019 kB]
+#9 54.88 Get:3 http://deb.debian.org/debian trixie/main amd64 libgdbm-compat4t64 amd64 1.24-2 [50.3 kB]
+#9 54.98 Get:4 http://deb.debian.org/debian trixie/main amd64 libperl5.40 amd64 5.40.1-6 [4341 kB]
+#9 70.70 Get:5 http://deb.debian.org/debian trixie/main amd64 perl amd64 5.40.1-6 [267 kB]
+#9 73.99 Get:6 http://deb.debian.org/debian trixie/main amd64 libngtcp2-16 amd64 1.11.0-1 [131 kB]
+#9 75.87 Get:7 http://deb.debian.org/debian trixie/main amd64 libngtcp2-crypto-gnutls8 amd64 1.11.0-1 [29.3 kB]
+#9 77.49 Get:8 http://deb.debian.org/debian trixie/main amd64 libcurl3t64-gnutls amd64 8.14.1-2+deb13u2 [383 kB]
+#9 80.23 Get:9 http://deb.debian.org/debian trixie/main amd64 liberror-perl all 0.17030-1 [26.9 kB]
+#9 80.65 Get:10 http://deb.debian.org/debian trixie/main amd64 git-man all 1:2.47.3-0+deb13u1 [2205 kB]
+#9 90.95 Get:11 http://deb.debian.org/debian trixie/main amd64 git amd64 1:2.47.3-0+deb13u1 [8862 kB]
+#9 122.6 debconf: unable to initialize frontend: Dialog
+#9 122.6 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#9 122.6 debconf: falling back to frontend: Readline
+#9 122.6 debconf: unable to initialize frontend: Readline
+#9 122.6 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 11.)
+#9 122.6 debconf: falling back to frontend: Teletype
+#9 122.6 debconf: unable to initialize frontend: Teletype
+#9 122.6 debconf: (This frontend requires a controlling tty.)
+#9 122.6 debconf: falling back to frontend: Noninteractive
+#9 123.3 Fetched 19.4 MB in 1min 28s (222 kB/s)
+#9 123.4 Selecting previously unselected package libexpat1:amd64.
+#9 123.4 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 5867 files and directories currently installed.)
+#9 123.4 Preparing to unpack .../00-libexpat1_2.7.1-2_amd64.deb ...
+#9 123.4 Unpacking libexpat1:amd64 (2.7.1-2) ...
+#9 123.4 Selecting previously unselected package perl-modules-5.40.
+#9 123.4 Preparing to unpack .../01-perl-modules-5.40_5.40.1-6_all.deb ...
+#9 123.4 Unpacking perl-modules-5.40 (5.40.1-6) ...
+#9 123.7 Selecting previously unselected package libgdbm-compat4t64:amd64.
+#9 123.7 Preparing to unpack .../02-libgdbm-compat4t64_1.24-2_amd64.deb ...
+#9 123.7 Unpacking libgdbm-compat4t64:amd64 (1.24-2) ...
+#9 123.7 Selecting previously unselected package libperl5.40:amd64.
+#9 123.7 Preparing to unpack .../03-libperl5.40_5.40.1-6_amd64.deb ...
+#9 123.7 Unpacking libperl5.40:amd64 (5.40.1-6) ...
+#9 124.0 Selecting previously unselected package perl.
+#9 124.0 Preparing to unpack .../04-perl_5.40.1-6_amd64.deb ...
+#9 124.0 Unpacking perl (5.40.1-6) ...
+#9 124.0 Selecting previously unselected package libngtcp2-16:amd64.
+#9 124.0 Preparing to unpack .../05-libngtcp2-16_1.11.0-1_amd64.deb ...
+#9 124.1 Unpacking libngtcp2-16:amd64 (1.11.0-1) ...
+#9 124.1 Selecting previously unselected package libngtcp2-crypto-gnutls8:amd64.
+#9 124.1 Preparing to unpack .../06-libngtcp2-crypto-gnutls8_1.11.0-1_amd64.deb ...
+#9 124.1 Unpacking libngtcp2-crypto-gnutls8:amd64 (1.11.0-1) ...
+#9 124.1 Selecting previously unselected package libcurl3t64-gnutls:amd64.
+#9 124.1 Preparing to unpack .../07-libcurl3t64-gnutls_8.14.1-2+deb13u2_amd64.deb ...
+#9 124.1 Unpacking libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) ...
+#9 124.2 Selecting previously unselected package liberror-perl.
+#9 124.2 Preparing to unpack .../08-liberror-perl_0.17030-1_all.deb ...
+#9 124.2 Unpacking liberror-perl (0.17030-1) ...
+#9 124.2 Selecting previously unselected package git-man.
+#9 124.2 Preparing to unpack .../09-git-man_1%3a2.47.3-0+deb13u1_all.deb ...
+#9 124.2 Unpacking git-man (1:2.47.3-0+deb13u1) ...
+#9 124.3 Selecting previously unselected package git.
+#9 124.3 Preparing to unpack .../10-git_1%3a2.47.3-0+deb13u1_amd64.deb ...
+#9 124.3 Unpacking git (1:2.47.3-0+deb13u1) ...
+#9 124.6 Setting up libexpat1:amd64 (2.7.1-2) ...
+#9 124.6 Setting up libgdbm-compat4t64:amd64 (1.24-2) ...
+#9 124.6 Setting up perl-modules-5.40 (5.40.1-6) ...
+#9 124.6 Setting up git-man (1:2.47.3-0+deb13u1) ...
+#9 124.7 Setting up libngtcp2-16:amd64 (1.11.0-1) ...
+#9 124.7 Setting up libngtcp2-crypto-gnutls8:amd64 (1.11.0-1) ...
+#9 124.7 Setting up libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) ...
+#9 124.7 Setting up libperl5.40:amd64 (5.40.1-6) ...
+#9 124.7 Setting up perl (5.40.1-6) ...
+#9 124.7 Setting up liberror-perl (0.17030-1) ...
+#9 124.7 Setting up git (1:2.47.3-0+deb13u1) ...
+#9 124.7 Processing triggers for libc-bin (2.41-12+deb13u2) ...
+#9 DONE 124.9s
+
+#10 [6/6] RUN pip install --no-cache-dir -r server/requirements.txt
+#10 2.540 Collecting openenv-core>=0.2.0 (from -r server/requirements.txt (line 3))
+#10 2.703   Downloading openenv_core-0.2.3-py3-none-any.whl.metadata (19 kB)
+#10 2.869 Collecting groq (from -r server/requirements.txt (line 4))
+#10 2.901   Downloading groq-1.1.2-py3-none-any.whl.metadata (16 kB)
+#10 2.910 Requirement already satisfied: fastapi in /usr/local/lib/python3.11/site-packages (from -r server/requirements.txt (line 5)) (0.135.2)
+#10 2.912 Requirement already satisfied: openai>=1.0.0 in /usr/local/lib/python3.11/site-packages (from -r server/requirements.txt (line 7)) (2.30.0)
+#10 2.913 Requirement already satisfied: uvicorn[standard] in /usr/local/lib/python3.11/site-packages (from -r server/requirements.txt (line 6)) (0.42.0)
+#10 2.941 Requirement already satisfied: pydantic>=2.0.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.12.5)
+#10 2.945 Requirement already satisfied: requests>=2.25.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.33.0)
+#10 2.947 Requirement already satisfied: typer>=0.9.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.24.1)
+#10 2.950 Requirement already satisfied: rich>=13.0.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (14.3.3)
+#10 2.951 Requirement already satisfied: pyyaml>=6.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (6.0.3)
+#10 2.953 Requirement already satisfied: huggingface_hub>=0.20.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.8.0)
+#10 2.954 Requirement already satisfied: tomli>=2.3.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.4.1)
+#10 2.955 Requirement already satisfied: tomli-w>=1.2.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.2.0)
+#10 2.956 Requirement already satisfied: websockets>=15.0.1 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (16.0)
+#10 2.957 Requirement already satisfied: fastmcp>=3.0.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.1.1)
+#10 2.959 Requirement already satisfied: gradio>=4.0.0 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (6.10.0)
+#10 2.961 Requirement already satisfied: httpx>=0.28.1 in /usr/local/lib/python3.11/site-packages (from openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.28.1)
+#10 2.969 Requirement already satisfied: anyio<5,>=3.5.0 in /usr/local/lib/python3.11/site-packages (from groq->-r server/requirements.txt (line 4)) (4.13.0)
+#10 2.970 Requirement already satisfied: distro<2,>=1.7.0 in /usr/local/lib/python3.11/site-packages (from groq->-r server/requirements.txt (line 4)) (1.9.0)
+#10 2.972 Requirement already satisfied: sniffio in /usr/local/lib/python3.11/site-packages (from groq->-r server/requirements.txt (line 4)) (1.3.1)
+#10 2.973 Requirement already satisfied: typing-extensions<5,>=4.14 in /usr/local/lib/python3.11/site-packages (from groq->-r server/requirements.txt (line 4)) (4.15.0)
+#10 2.996 Requirement already satisfied: starlette>=0.46.0 in /usr/local/lib/python3.11/site-packages (from fastapi->-r server/requirements.txt (line 5)) (0.52.1)
+#10 2.998 Requirement already satisfied: typing-inspection>=0.4.2 in /usr/local/lib/python3.11/site-packages (from fastapi->-r server/requirements.txt (line 5)) (0.4.2)
+#10 3.000 Requirement already satisfied: annotated-doc>=0.0.2 in /usr/local/lib/python3.11/site-packages (from fastapi->-r server/requirements.txt (line 5)) (0.0.4)
+#10 3.015 Requirement already satisfied: click>=7.0 in /usr/local/lib/python3.11/site-packages (from uvicorn[standard]->-r server/requirements.txt (line 6)) (8.3.1)
+#10 3.016 Requirement already satisfied: h11>=0.8 in /usr/local/lib/python3.11/site-packages (from uvicorn[standard]->-r server/requirements.txt (line 6)) (0.16.0)
+#10 3.273 Collecting httptools>=0.6.3 (from uvicorn[standard]->-r server/requirements.txt (line 6))
+#10 3.304   Downloading httptools-0.7.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (3.5 kB)
+#10 3.310 Requirement already satisfied: python-dotenv>=0.13 in /usr/local/lib/python3.11/site-packages (from uvicorn[standard]->-r server/requirements.txt (line 6)) (1.2.2)
+#10 3.664 Collecting uvloop>=0.15.1 (from uvicorn[standard]->-r server/requirements.txt (line 6))
+#10 3.708   Downloading uvloop-0.22.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.9 kB)
+#10 3.714 Requirement already satisfied: watchfiles>=0.20 in /usr/local/lib/python3.11/site-packages (from uvicorn[standard]->-r server/requirements.txt (line 6)) (1.1.1)
+#10 3.728 Requirement already satisfied: jiter<1,>=0.10.0 in /usr/local/lib/python3.11/site-packages (from openai>=1.0.0->-r server/requirements.txt (line 7)) (0.13.0)
+#10 3.732 Requirement already satisfied: tqdm>4 in /usr/local/lib/python3.11/site-packages (from openai>=1.0.0->-r server/requirements.txt (line 7)) (4.67.3)
+#10 3.739 Requirement already satisfied: idna>=2.8 in /usr/local/lib/python3.11/site-packages (from anyio<5,>=3.5.0->groq->-r server/requirements.txt (line 4)) (3.11)
+#10 3.784 Requirement already satisfied: authlib>=1.6.5 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.6.9)
+#10 3.787 Requirement already satisfied: cyclopts>=4.0.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (4.10.1)
+#10 3.789 Requirement already satisfied: exceptiongroup>=1.2.2 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.3.1)
+#10 3.791 Requirement already satisfied: jsonref>=1.1.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.1.0)
+#10 3.792 Requirement already satisfied: jsonschema-path>=0.3.4 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.4.5)
+#10 3.795 Requirement already satisfied: mcp<2.0,>=1.24.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.26.0)
+#10 3.797 Requirement already satisfied: openapi-pydantic>=0.5.1 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.5.1)
+#10 3.797 Requirement already satisfied: opentelemetry-api>=1.20.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.40.0)
+#10 3.798 Requirement already satisfied: packaging>=24.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (26.0)
+#10 3.800 Requirement already satisfied: platformdirs>=4.0.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (4.9.4)
+#10 3.803 Requirement already satisfied: py-key-value-aio<0.5.0,>=0.4.4 in /usr/local/lib/python3.11/site-packages (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.4.4)
+#10 3.807 Requirement already satisfied: pyperclip>=1.9.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.11.0)
+#10 3.811 Requirement already satisfied: uncalled-for>=0.2.0 in /usr/local/lib/python3.11/site-packages (from fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.2.0)
+#10 3.833 Requirement already satisfied: aiofiles<25.0,>=22.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (24.1.0)
+#10 3.834 Requirement already satisfied: brotli>=1.1.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.2.0)
+#10 3.835 Requirement already satisfied: ffmpy in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.0.0)
+#10 3.836 Requirement already satisfied: gradio-client==2.4.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.4.0)
+#10 3.838 Requirement already satisfied: groovy~=0.1 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.1.2)
+#10 3.839 Requirement already satisfied: hf-gradio<1.0,>=0.3.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.3.0)
+#10 3.841 Requirement already satisfied: jinja2<4.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.1.6)
+#10 3.842 Requirement already satisfied: markupsafe<4.0,>=2.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.0.3)
+#10 3.843 Requirement already satisfied: numpy<3.0,>=1.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.4.3)
+#10 3.845 Requirement already satisfied: orjson~=3.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.11.7)
+#10 3.852 Requirement already satisfied: pandas<4.0,>=1.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.0.1)
+#10 3.854 Requirement already satisfied: pillow<13.0,>=8.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (12.1.1)
+#10 3.856 Requirement already satisfied: pydub in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.25.1)
+#10 3.857 Requirement already satisfied: python-multipart>=0.0.18 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.0.22)
+#10 3.859 Requirement already satisfied: pytz>=2017.2 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2026.1.post1)
+#10 3.861 Requirement already satisfied: safehttpx<0.2.0,>=0.1.7 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.1.7)
+#10 3.862 Requirement already satisfied: semantic-version~=2.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.10.0)
+#10 3.863 Requirement already satisfied: tomlkit<0.14.0,>=0.12.0 in /usr/local/lib/python3.11/site-packages (from gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.13.3)
+#10 3.871 Requirement already satisfied: fsspec in /usr/local/lib/python3.11/site-packages (from gradio-client==2.4.0->gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2026.3.0)
+#10 3.886 Requirement already satisfied: certifi in /usr/local/lib/python3.11/site-packages (from httpx>=0.28.1->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2026.2.25)
+#10 3.888 Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.11/site-packages (from httpx>=0.28.1->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.0.9)
+#10 3.958 Requirement already satisfied: filelock>=3.10.0 in /usr/local/lib/python3.11/site-packages (from huggingface_hub>=0.20.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.25.2)
+#10 3.962 Requirement already satisfied: hf-xet<2.0.0,>=1.4.2 in /usr/local/lib/python3.11/site-packages (from huggingface_hub>=0.20.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.4.2)
+#10 3.977 Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.11/site-packages (from pydantic>=2.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.7.0)
+#10 3.978 Requirement already satisfied: pydantic-core==2.41.5 in /usr/local/lib/python3.11/site-packages (from pydantic>=2.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.41.5)
+#10 4.003 Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/site-packages (from requests>=2.25.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.4.6)
+#10 4.004 Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.11/site-packages (from requests>=2.25.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.6.3)
+#10 4.011 Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.11/site-packages (from rich>=13.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (4.0.0)
+#10 4.011 Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.11/site-packages (from rich>=13.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.19.2)
+#10 4.045 Requirement already satisfied: shellingham>=1.3.0 in /usr/local/lib/python3.11/site-packages (from typer>=0.9.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.5.4)
+#10 4.109 Requirement already satisfied: cryptography in /usr/local/lib/python3.11/site-packages (from authlib>=1.6.5->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (46.0.6)
+#10 4.150 Requirement already satisfied: attrs>=23.1.0 in /usr/local/lib/python3.11/site-packages (from cyclopts>=4.0.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (26.1.0)
+#10 4.151 Requirement already satisfied: docstring-parser<4.0,>=0.15 in /usr/local/lib/python3.11/site-packages (from cyclopts>=4.0.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.17.0)
+#10 4.152 Requirement already satisfied: rich-rst<2.0.0,>=1.3.1 in /usr/local/lib/python3.11/site-packages (from cyclopts>=4.0.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.3.2)
+#10 4.273 Requirement already satisfied: pathable<0.6.0,>=0.5.0 in /usr/local/lib/python3.11/site-packages (from jsonschema-path>=0.3.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.5.0)
+#10 4.274 Requirement already satisfied: referencing<0.38.0 in /usr/local/lib/python3.11/site-packages (from jsonschema-path>=0.3.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.37.0)
+#10 4.297 Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.11/site-packages (from markdown-it-py>=2.2.0->rich>=13.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.1.2)
+#10 4.323 Requirement already satisfied: httpx-sse>=0.4 in /usr/local/lib/python3.11/site-packages (from mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.4.3)
+#10 4.325 Requirement already satisfied: jsonschema>=4.20.0 in /usr/local/lib/python3.11/site-packages (from mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (4.26.0)
+#10 4.326 Requirement already satisfied: pydantic-settings>=2.5.2 in /usr/local/lib/python3.11/site-packages (from mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.13.1)
+#10 4.328 Requirement already satisfied: pyjwt>=2.10.1 in /usr/local/lib/python3.11/site-packages (from pyjwt[crypto]>=2.10.1->mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.12.1)
+#10 4.330 Requirement already satisfied: sse-starlette>=1.6.1 in /usr/local/lib/python3.11/site-packages (from mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.3.3)
+#10 4.354 Requirement already satisfied: importlib-metadata<8.8.0,>=6.0 in /usr/local/lib/python3.11/site-packages (from opentelemetry-api>=1.20.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (8.7.1)
+#10 4.425 Requirement already satisfied: python-dateutil>=2.8.2 in /usr/local/lib/python3.11/site-packages (from pandas<4.0,>=1.0->gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.9.0.post0)
+#10 4.486 Requirement already satisfied: beartype>=0.20.0 in /usr/local/lib/python3.11/site-packages (from py-key-value-aio<0.5.0,>=0.4.4->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.22.9)
+#10 4.521 Requirement already satisfied: aiofile>=3.5.0 in /usr/local/lib/python3.11/site-packages (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.9.0)
+#10 4.523 Requirement already satisfied: keyring>=25.6.0 in /usr/local/lib/python3.11/site-packages (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (25.7.0)
+#10 4.525 Requirement already satisfied: cachetools>=5.0.0 in /usr/local/lib/python3.11/site-packages (from py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (7.0.5)
+#10 4.540 Requirement already satisfied: email-validator>=2.0.0 in /usr/local/lib/python3.11/site-packages (from pydantic[email]>=2.11.7->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.3.0)
+#10 4.657 Requirement already satisfied: caio<0.10.0,>=0.9.0 in /usr/local/lib/python3.11/site-packages (from aiofile>=3.5.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.9.25)
+#10 4.781 Requirement already satisfied: dnspython>=2.0.0 in /usr/local/lib/python3.11/site-packages (from email-validator>=2.0.0->pydantic[email]>=2.11.7->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.8.0)
+#10 4.813 Requirement already satisfied: zipp>=3.20 in /usr/local/lib/python3.11/site-packages (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api>=1.20.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.23.0)
+#10 4.834 Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.20.0->mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2025.9.1)
+#10 4.835 Requirement already satisfied: rpds-py>=0.25.0 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.20.0->mcp<2.0,>=1.24.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.30.0)
+#10 4.861 Requirement already satisfied: SecretStorage>=3.2 in /usr/local/lib/python3.11/site-packages (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.5.0)
+#10 4.863 Requirement already satisfied: jeepney>=0.4.2 in /usr/local/lib/python3.11/site-packages (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.9.0)
+#10 4.865 Requirement already satisfied: jaraco.classes in /usr/local/lib/python3.11/site-packages (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.4.0)
+#10 4.866 Requirement already satisfied: jaraco.functools in /usr/local/lib/python3.11/site-packages (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (4.4.0)
+#10 4.867 Requirement already satisfied: jaraco.context in /usr/local/lib/python3.11/site-packages (from keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (6.1.2)
+#10 4.961 Requirement already satisfied: cffi>=2.0.0 in /usr/local/lib/python3.11/site-packages (from cryptography->authlib>=1.6.5->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (2.0.0)
+#10 4.972 Requirement already satisfied: six>=1.5 in /usr/local/lib/python3.11/site-packages (from python-dateutil>=2.8.2->pandas<4.0,>=1.0->gradio>=4.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.17.0)
+#10 4.996 Requirement already satisfied: docutils in /usr/local/lib/python3.11/site-packages (from rich-rst<2.0.0,>=1.3.1->cyclopts>=4.0.0->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (0.22.4)
+#10 5.036 Requirement already satisfied: pycparser in /usr/local/lib/python3.11/site-packages (from cffi>=2.0.0->cryptography->authlib>=1.6.5->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (3.0)
+#10 5.164 Requirement already satisfied: more-itertools in /usr/local/lib/python3.11/site-packages (from jaraco.classes->keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (10.8.0)
+#10 5.184 Requirement already satisfied: backports.tarfile in /usr/local/lib/python3.11/site-packages (from jaraco.context->keyring>=25.6.0->py-key-value-aio[filetree,keyring,memory]<0.5.0,>=0.4.4->fastmcp>=3.0.0->openenv-core>=0.2.0->-r server/requirements.txt (line 3)) (1.2.0)
+#10 5.283 Downloading openenv_core-0.2.3-py3-none-any.whl (174 kB)
+#10 5.438    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 174.6/174.6 kB 1.1 MB/s eta 0:00:00
+#10 5.468 Downloading groq-1.1.2-py3-none-any.whl (141 kB)
+#10 5.833    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 141.7/141.7 kB 372.0 kB/s eta 0:00:00
+#10 5.873 Downloading httptools-0.7.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (456 kB)
+#10 6.178    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 456.6/456.6 kB 1.5 MB/s eta 0:00:00
+#10 6.210 Downloading uvloop-0.22.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.8 MB)
+#10 12.16    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.8/3.8 MB 639.1 kB/s eta 0:00:00
+#10 12.91 Installing collected packages: uvloop, httptools, groq, openenv-core
+#10 13.25 Successfully installed groq-1.1.2 httptools-0.7.1 openenv-core-0.2.3 uvloop-0.22.1
+#10 13.25 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+#10 13.52 
+#10 13.52 [notice] A new release of pip is available: 24.0 -> 26.0.1
+#10 13.52 [notice] To update, run: pip install --upgrade pip
+#10 DONE 13.7s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 3.7s done
+#11 exporting manifest sha256:7f13d4d5d17dfc86125b46482500552d98b5ae93f0f4b2b7f454a60412dcda4d 0.0s done
+#11 exporting config sha256:b313cd58371e1d83a727a414f2d9ed58e39dfc6c4f7e0a84e88fb943ae03771a done
+#11 exporting attestation manifest sha256:11369e3065ac099d0f5a1570e35352e3385ec5b5da93d7419cc8ec42005aec13 0.0s done
+#11 exporting manifest list sha256:983be47c75c089c00be8f3c3c50eba02eb706b2bd3ab80772c418b9dfdce9fb9 done
+#11 naming to docker.io/library/prompt_zip_env:latest done
+#11 unpacking to docker.io/library/prompt_zip_env:latest
+#11 unpacking to docker.io/library/prompt_zip_env:latest 1.0s done
+#11 DONE 4.8s

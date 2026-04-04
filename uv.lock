@@ -1,0 +1,10 @@
+fastapi==0.135.3
+groq==1.1.2
+openai==2.30.0
+openapi-pydantic==0.5.1
+openenv-core==0.2.3
+pydantic==2.12.5
+pydantic-settings==2.13.1
+pydantic_core==2.41.5
+uvicorn==0.42.0
+# minimal uv.lock stub
