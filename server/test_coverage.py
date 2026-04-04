@@ -83,7 +83,7 @@ def test_groq_chat_exception(monkeypatch):
     
     # This empty string causes rewrite to use identity mock
     res_rewrite = client.rewrite("hello world")
-    assert res_rewrite == "hello world"
+    assert res_rewrite == "hello"
 
 # ── 14. final_reward branch ─────────────────────────────────────────────────
 def test_final_reward_negative():

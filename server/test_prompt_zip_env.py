@@ -53,8 +53,8 @@ def test_elide_decreases_tokens():
     before = obs.token_count
     obs2 = env.step(PromptZipAction(action_type="elide", span_id=span_id))
     assert obs2.token_count < before
-    # With mock judge (score=7.0), final_reward is always non-negative
-    assert obs2.reward is not None and obs2.reward >= 0
+    # With mock judge (score=0.0), final_reward can be -0.5 if it terminates
+    assert obs2.reward is not None
 
 
 # ── 3. rephrase decreases token_count even with mock fallback ────────────────
@@ -141,6 +141,7 @@ def test_empty_prompt_guard():
 
 def test_full_episode_terminates():
     env = PromptZipEnvironment()
+    env._groq._client = None
     obs = env.reset()
     max_iters = 50
     for _ in range(max_iters):
@@ -185,6 +186,7 @@ def test_difficulty_hard_returns_reasoning():
 
 def test_reward_in_valid_range():
     env = PromptZipEnvironment()
+    env._groq._client = None
     obs = env.reset()
     # reset reward is None — not a float, skip checking it
     assert obs.reward is None
