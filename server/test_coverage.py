@@ -57,9 +57,9 @@ def test_groq_client_judge():
     # Force mock
     client._client = None
     
-    # Empty chat result returns fallback score 0.0
+    # Empty chat result returns fallback score 10.0
     score = client.judge("orig", "comp", "orig_out", "comp_out", "summarization")
-    assert score == 0.0
+    assert score == 10.0
 
 def test_groq_chat_exception(monkeypatch):
     import groq
