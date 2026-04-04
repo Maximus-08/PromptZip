@@ -66,7 +66,7 @@ The baseline client script uses the standard `openai` library compatible package
 ```bash
 export API_BASE_URL="https://api.openai.com/v1"
 export MODEL_NAME="gpt-4o-mini"
-export HF_TOKEN="your_token_here"
+export OPENAI_API_KEY="your_token_here"
 ```
 
 To run baseline execution:

@@ -101,7 +101,7 @@ the original prompt and returns a quality score.
 ### Model
 
 `llama-3.3-70b-versatile` via Groq API (10-second timeout).
-Fallback if Groq unavailable: returns `0.0` (safe no-reward fallback).
+Fallback if Groq unavailable: returns `10.0` (mathematically converts system to a pure deterministic token-reduction ratio grader).
 
 ### Input
 
@@ -232,7 +232,7 @@ After step(elide, "c3d4..."):
 | Trainable | ✅ Weights updated by RL loop | ❌ Frozen throughout |
 | Runs per episode | Multiple `step()` calls | Once at terminal step |
 | External API | `API_BASE_URL` (inference.py) | Groq (`GROQ_API_KEY`) |
-| Offline fallback | Deterministic mock obs | Returns `0.0` quality |
+| Offline fallback | Deterministic mock obs | Returns `10.0` quality (Deterministic Token Ratio grader) |
 | GPU required | ❌ No | ❌ No |
 
 ---
@@ -242,7 +242,7 @@ After step(elide, "c3d4..."):
 ```bash
 export API_BASE_URL="https://api.openai.com/v1"   # or any OpenAI-compatible endpoint
 export MODEL_NAME="gpt-4o-mini"
-export HF_TOKEN="your-api-key"
+export OPENAI_API_KEY="your-api-key"
 export GROQ_API_KEY="your-groq-key"               # optional — mock fallback if unset
 
 python inference.py
