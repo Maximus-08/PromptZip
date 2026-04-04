@@ -287,8 +287,11 @@ class _GroqClient:
             try:
                 import groq  # type: ignore
                 self._client = groq.Groq(api_key=api_key)
-            except Exception:
+            except Exception as e:
+                log.warning("Groq API import or initialization failed: %s", e)
                 self._client = None
+        else:
+            log.warning("GROQ_API_KEY not found in environment — using mock fallback")
 
     def _chat(self, model: str, messages: list[dict], timeout: float = 10.0) -> str:
         if self._client is None:
@@ -343,10 +346,10 @@ class _GroqClient:
         judge_prompt = (
             f"You are evaluating prompt compression quality.\n\n"
             f"Task type: {task_type}\n\n"
-            f"Original prompt:\n{original_prompt}\n\n"
-            f"Compressed prompt:\n{compressed_prompt}\n\n"
-            f"Original output:\n{original_output}\n\n"
-            f"Compressed output:\n{compressed_output}\n\n"
+            f"Original prompt:\n<prompt>\n{original_prompt}\n</prompt>\n\n"
+            f"Compressed prompt:\n<prompt>\n{compressed_prompt}\n</prompt>\n\n"
+            f"Original output:\n<output>\n{original_output}\n</output>\n\n"
+            f"Compressed output:\n<output>\n{compressed_output}\n</output>\n\n"
             "Score the compressed output on a scale from 0 to 10 based on:\n"
             "1. Semantic preservation (0-2.5)\n"
             "2. Factual accuracy (0-2.5)\n"
@@ -375,7 +378,7 @@ class _GroqClient:
 class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     """RL environment for compressing LLM prompts via span-level actions."""
 
-    SUPPORTS_CONCURRENT_SESSIONS: bool = True
+    SUPPORTS_CONCURRENT_SESSIONS: bool = False
 
     def __init__(self) -> None:
         super().__init__()
@@ -483,11 +486,11 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         entry = pool[self._dataset_idx % len(pool)]
         self._dataset_idx += 1
         self._task_type = entry["task_type"]
-        self._token_budget = entry["token_budget"]
-        self._original_prompt = entry["prompt"]
-
+        
         self._spans, self._seps = _segment(entry["prompt"])
-        self._original_token_count = _count_tokens(entry["prompt"])
+        self._original_prompt = self._prompt_text()
+        self._original_token_count = self._token_count()
+        self._token_budget = max(1, int(self._original_token_count * 0.55))
         self._initial_span_count = len(self._spans) or 1
 
         self._original_output = self._groq.generate(entry["prompt"])

@@ -18,7 +18,7 @@ app = create_app(
     PromptZipAction,
     PromptZipObservation,
     env_name="prompt_zip_env",
-    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "4")),
+    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "1")),
 )
 
 

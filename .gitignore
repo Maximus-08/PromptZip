@@ -9,4 +9,3 @@ build/
 .DS_Store
 .coverage
 build.log
-uv.lock
