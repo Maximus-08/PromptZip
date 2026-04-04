@@ -22,6 +22,8 @@ import sys
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from models import PromptZipAction
+
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -140,10 +142,9 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
                 action_dict["span_id"] = unlocked[0]
                 action_dict["action_type"] = "preserve"
             else:
-                obs = env.step(type("A", (), {"action_type": "preserve", "span_id": list(obs.spans.keys())[0]})())
+                obs = env.step(PromptZipAction(action_type="preserve", span_id=list(obs.spans.keys())[0]))
                 break
 
-        from models import PromptZipAction
         action = PromptZipAction(
             action_type=action_dict.get("action_type", "preserve"),
             span_id=action_dict["span_id"],

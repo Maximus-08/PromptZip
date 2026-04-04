@@ -320,8 +320,9 @@ class _GroqClient:
             ],
         )
         if not result:
-            # Mock fallback: return span unchanged (identity) rather than a truncated fragment
-            return span
+            # Mock fallback: return span truncated to ~60%
+            words = span.split()
+            return " ".join(words[:max(1, int(len(words) * 0.6))])
         return result
 
     def generate(self, prompt: str) -> str:
@@ -588,6 +589,24 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             )
 
         return self._build_obs(reward=step_reward, done=False)
+
+    def grade(
+        self,
+        original_prompt: str,
+        compressed_prompt: str,
+        original_output: str,
+        compressed_output: str,
+        task_type: str,
+    ) -> float:
+        """Standalone API for grading compressed prompt quality [0.0 - 1.0]."""
+        raw_score = self._groq.judge(
+            original_prompt=original_prompt,
+            compressed_prompt=compressed_prompt,
+            original_output=original_output,
+            compressed_output=compressed_output,
+            task_type=task_type,
+        )
+        return raw_score / 10.0
 
     @property
     def state(self) -> State:
