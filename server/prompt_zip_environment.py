@@ -578,7 +578,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                 self._done = True
                 final_reward = self._run_judge_flow()
                 return self._build_obs(
-                    reward=max(-1.0, min(1.0, step_reward + final_reward)),
+                    reward=max(0.0, min(1.0, step_reward + final_reward)),
                     done=True,
                     metadata={"info": "all remaining spans locked, episode terminated", "final_reward": final_reward},
                 )
@@ -587,7 +587,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             self._done = True
             final_reward = self._run_judge_flow()
             return self._build_obs(
-                reward=max(-1.0, min(1.0, step_reward + final_reward)),
+                reward=max(0.0, min(1.0, step_reward + final_reward)),
                 done=True,
                 metadata={"info": "episode terminated", "final_reward": final_reward},
             )
@@ -608,6 +608,10 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         comp_len = len(compressed_prompt.split())
         compression = max(0.0, 1.0 - comp_len / orig_len)   # 0 = no compression, 1 = everything removed
     
+        # Guard: if outputs are missing/mock, fall back to compression-only score
+        if not original_output or not compressed_output or original_output == "[mock output]":
+            return round(min(1.0, compression), 4)
+            
         # Semantic preservation (token overlap of outputs — proxy for meaning retention)
         orig_toks = set(original_output.lower().split())
         comp_toks = set(compressed_output.lower().split())
