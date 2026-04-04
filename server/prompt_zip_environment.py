@@ -452,7 +452,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         final = quality * (tokens_saved / self._original_token_count) if self._original_token_count else 0.0
         if quality < 0.6:
             final -= 0.5  # penalty for quality collapse
-        final = max(-1.0, min(1.0, final))  # hard clamp
+        final = max(0.0, min(1.0, final))  # clamp to valid reward bounding range
         return final
 
     # ── OpenEnv API ───────────────────────────
@@ -603,14 +603,21 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         task_type: str,
     ) -> float:
         """Standalone API for grading compressed prompt quality [0.0 - 1.0]."""
-        raw_score = self._groq.judge(
-            original_prompt=original_prompt,
-            compressed_prompt=compressed_prompt,
-            original_output=original_output,
-            compressed_output=compressed_output,
-            task_type=task_type,
-        )
-        return max(0.0, min(1.0, raw_score / 10.0))
+        # Compression ratio (how much did we shrink the prompt?)
+        orig_len = max(1, len(original_prompt.split()))
+        comp_len = len(compressed_prompt.split())
+        compression = max(0.0, 1.0 - comp_len / orig_len)   # 0 = no compression, 1 = everything removed
+    
+        # Semantic preservation (token overlap of outputs — proxy for meaning retention)
+        orig_toks = set(original_output.lower().split())
+        comp_toks = set(compressed_output.lower().split())
+        overlap = len(orig_toks & comp_toks) / max(len(orig_toks), 1)
+    
+        # Penalise over-compression (> 80% reduction likely destroys meaning)
+        if compression > 0.8:
+            compression *= 0.5
+    
+        return round(min(1.0, 0.6 * overlap + 0.4 * compression), 4)
 
     @property
     def state(self) -> State:

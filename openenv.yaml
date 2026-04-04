@@ -11,3 +11,19 @@ tags:
   - openenv
   - prompt-compression
   - rl-environment
+
+tasks:
+  - name: easy_qa
+    description: "Compress simple QA prompts with obvious filler"
+    difficulty: easy
+    grader: server.prompt_zip_environment.PromptZipEnvironment.grade
+
+  - name: medium_compress
+    description: "Compress summarization and code_gen prompts preserving structure"
+    difficulty: medium
+    grader: server.prompt_zip_environment.PromptZipEnvironment.grade
+
+  - name: hard_reasoning
+    description: "Compress reasoning chain prompts without breaking logic"
+    difficulty: hard
+    grader: server.prompt_zip_environment.PromptZipEnvironment.grade

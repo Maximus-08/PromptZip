@@ -104,6 +104,6 @@ def test_final_reward_negative():
     env._token_budget = 1000
     obs = env.step(PromptZipAction(action_type="elide", span_id=list(env._spans.keys())[0]))
     
-    # Final reward should be negative due to the cliff
+    # Final reward should be clamped to 0.0 due to the cliff instead of going negative
     assert obs.done is True
-    assert obs.reward < 0
+    assert obs.reward >= 0

@@ -15,7 +15,7 @@ class PromptZipObservation(Observation):
 
     # Explicitly redefined from base for safety across framework versions
     done: bool = False
-    reward: bool | int | float | None = None
+    reward: float | int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     prompt_text: str

@@ -28,7 +28,8 @@ load_dotenv()
 # ── Config ────────────────────────────────────────────────────────────────────
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN     = os.environ.get("OPENAI_API_KEY", os.environ.get("HF_TOKEN", ""))
+# Competition spec mandates OPENAI_API_KEY; HF_TOKEN is the fallback alias
+API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN") or ""
 DEBUG        = os.environ.get("DEBUG", "0") == "1"
 
 MAX_STEPS    = 20
@@ -59,7 +60,7 @@ Output ONLY the JSON object. No explanation, no markdown, no extra text.
 
 
 def make_client() -> OpenAI:
-    return OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "none")
+    return OpenAI(base_url=API_BASE_URL, api_key=API_KEY or "none")
 
 
 def parse_action(text: str) -> dict:
@@ -179,8 +180,8 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
 def main() -> None:
     from server.prompt_zip_environment import PromptZipEnvironment
 
-    if not HF_TOKEN:
-        print("WARNING: HF_TOKEN not set — inference calls may fail", flush=True)
+    if not API_KEY:
+        print("WARNING: API_KEY not set — inference calls may fail", flush=True)
 
     client = make_client()
     env = PromptZipEnvironment()
