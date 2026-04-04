@@ -17,7 +17,6 @@ Optional:
 
 import json
 import os
-import sys
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -89,7 +88,7 @@ def obs_to_user_message(obs) -> str:
         lines.append(f"  {uid}: {text!r}")
     if obs.locked_spans:
         lines.append(f"\nLocked (do NOT target): {obs.locked_spans}")
-    lines.append(f"\nPrevious step reward: {obs.reward}")
+    lines.append(f"\nPrevious step reward: {obs.reward if obs.reward is not None else 0.0}")
     return "\n".join(lines)
 
 

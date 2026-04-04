@@ -413,7 +413,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     def _token_count(self) -> int:
         return _count_tokens(self._prompt_text())
 
-    def _build_obs(self, reward: float, done: bool, metadata: Optional[dict] = None) -> PromptZipObservation:
+    def _build_obs(self, reward: float | None, done: bool, metadata: Optional[dict] = None) -> PromptZipObservation:
         obs = PromptZipObservation(
             done=done,
             reward=reward,
@@ -535,6 +535,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         # ── Execute action ────────────────────
         if action.action_type == "elide":
             del self._spans[action.span_id]
+            self._seps.pop(action.span_id, None)
 
             # Empty-prompt guard: all spans gone → penalise, terminate
             if not self._spans:
@@ -574,7 +575,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                 self._done = True
                 final_reward = self._run_judge_flow()
                 return self._build_obs(
-                    reward=step_reward + final_reward,
+                    reward=max(-1.0, min(1.0, step_reward + final_reward)),
                     done=True,
                     metadata={"info": "all remaining spans locked, episode terminated", "final_reward": final_reward},
                 )
@@ -583,7 +584,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             self._done = True
             final_reward = self._run_judge_flow()
             return self._build_obs(
-                reward=step_reward + final_reward,
+                reward=max(-1.0, min(1.0, step_reward + final_reward)),
                 done=True,
                 metadata={"info": "episode terminated", "final_reward": final_reward},
             )
@@ -606,7 +607,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             compressed_output=compressed_output,
             task_type=task_type,
         )
-        return raw_score / 10.0
+        return max(0.0, min(1.0, raw_score / 10.0))
 
     @property
     def state(self) -> State:
