@@ -28,12 +28,14 @@ load_dotenv()
 # ── Config ────────────────────────────────────────────────────────────────────
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN     = os.environ.get("HF_TOKEN", "")
+HF_TOKEN     = os.environ.get("OPENAI_API_KEY", os.environ.get("HF_TOKEN", ""))
 DEBUG        = os.environ.get("DEBUG", "0") == "1"
 
 MAX_STEPS    = 20
 TEMPERATURE  = 0.0
 MAX_TOKENS   = 256
+MAX_TOTAL_REWARD = 1.5
+SUCCESS_SCORE_THRESHOLD = 0.4
 FALLBACK_ACTION = '{"action_type": "preserve", "span_id": "__fallback__"}'
 
 SYSTEM_PROMPT = """\
@@ -92,20 +94,29 @@ def obs_to_user_message(obs) -> str:
     return "\n".join(lines)
 
 
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+def log_step(step: int, action: str, reward: float, done: bool, error: str | None) -> None:
+    print(f"[STEP] step={step} action={action!r} reward={reward:+.4f} done={done} error={error}", flush=True)
+
+def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
+    print(f"[END] success={success} steps={steps} score={score:.4f} rewards={rewards}", flush=True)
+
 def log(msg: str) -> None:
-    print(msg, flush=True)
+    if DEBUG:
+        print(msg, flush=True)
 
 
 def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float:
-    """Run one episode and return total cumulative reward."""
+    """Run one episode and return normalized score."""
     obs = env.reset(difficulty=difficulty)
-    log(f"\n{'='*60}")
-    log(f"Episode {episode_num} | difficulty={difficulty} | task={obs.task_type}")
-    log(f"Initial tokens: {obs.token_count} → budget: {obs.token_budget}")
-    log(f"{'='*60}")
+    log_start(task=obs.task_type, env=difficulty, model=MODEL_NAME)
 
     last_reward = 0.0
+    rewards = []
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    steps_taken = 0
 
     for step in range(1, MAX_STEPS + 1):
         if obs.done:
@@ -130,9 +141,6 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
         action_dict = parse_action(response_text)
         messages.append({"role": "assistant", "content": response_text})
 
-        if DEBUG:
-            log(f"  Step {step}: {action_dict}")
-
         # Validate span — fallback to first unlocked span if model hallucinated
         span_id = action_dict.get("span_id", "")
         unlocked = [s for s in obs.spans if s not in obs.locked_spans]
@@ -152,21 +160,27 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
 
         step_reward = obs.reward if obs.reward is not None else 0.0
         last_reward = step_reward
-        log(f"  Step {step:2d}: {action.action_type:8s} | tokens={obs.token_count:3d} | reward={step_reward:+.4f}")
+        rewards.append(step_reward)
+        steps_taken = step
+        
+        log_step(step=step, action=response_text, reward=step_reward, done=obs.done, error=None)
 
         if obs.done:
-            final = obs.metadata.get("final_reward", 0.0)
-            log(f"  → DONE | final_reward={final:+.4f} | episode_score={last_reward:+.4f}")
             break
 
-    return last_reward
+    score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
+    score = min(max(score, 0.0), 1.0)
+    success = score >= SUCCESS_SCORE_THRESHOLD
+    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    
+    return score
 
 
 def main() -> None:
     from server.prompt_zip_environment import PromptZipEnvironment
 
     if not HF_TOKEN:
-        log("WARNING: HF_TOKEN not set — inference calls may fail")
+        print("WARNING: HF_TOKEN not set — inference calls may fail", flush=True)
 
     client = make_client()
     env = PromptZipEnvironment()
@@ -183,17 +197,17 @@ def main() -> None:
             results[difficulty].append(reward)
             episode_num += 1
 
-    log("\n" + "=" * 60)
-    log("BASELINE SCORES")
-    log("=" * 60)
+    print("\n" + "=" * 60, flush=True)
+    print("BASELINE SCORES", flush=True)
+    print("=" * 60, flush=True)
     grand_total = 0.0
     for difficulty in difficulties:
         scores = results[difficulty]
         avg = sum(scores) / len(scores) if scores else 0.0
         grand_total += avg
-        log(f"  {difficulty:8s}: avg={avg:+.4f}  ({scores})")
-    log(f"  {'TOTAL':8s}: {grand_total:+.4f}")
-    log("=" * 60)
+        print(f"  {difficulty:8s}: avg={avg:+.4f}  ({scores})", flush=True)
+    print(f"  {'TOTAL':8s}: {grand_total:+.4f}", flush=True)
+    print("=" * 60, flush=True)
 
 
 if __name__ == "__main__":

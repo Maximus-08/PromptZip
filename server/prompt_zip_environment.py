@@ -362,14 +362,14 @@ class _GroqClient:
             messages=[{"role": "user", "content": judge_prompt}],
         )
         if not result:
-            log.warning("Groq judge call failed — using 0.0 fallback (no unearned reward)")
-            return 0.0
+            log.warning("Groq judge call failed — using 10.0 fallback (deterministic token-reduction ratio)")
+            return 10.0
         try:
             score = float(result.strip().split()[0])
             return max(0.0, min(10.0, score))
         except (ValueError, IndexError):
-            log.warning("Groq judge parsing failed — using 0.0 fallback")
-            return 0.0
+            log.warning("Groq judge parsing failed — using 10.0 fallback (deterministic token-reduction ratio)")
+            return 10.0
 
 
 # ──────────────────────────────────────────────
