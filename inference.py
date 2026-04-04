@@ -104,7 +104,7 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
     log(f"Initial tokens: {obs.token_count} → budget: {obs.token_budget}")
     log(f"{'='*60}")
 
-    total_reward = 0.0
+    last_reward = 0.0
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     for step in range(1, MAX_STEPS + 1):
@@ -150,16 +150,16 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
         )
         obs = env.step(action)
 
-        step_reward = obs.reward or 0.0
-        total_reward += step_reward
+        step_reward = obs.reward if obs.reward is not None else 0.0
+        last_reward = step_reward
         log(f"  Step {step:2d}: {action.action_type:8s} | tokens={obs.token_count:3d} | reward={step_reward:+.4f}")
 
         if obs.done:
             final = obs.metadata.get("final_reward", 0.0)
-            log(f"  → DONE | final_reward={final:+.4f} | total={total_reward:+.4f}")
+            log(f"  → DONE | final_reward={final:+.4f} | episode_score={last_reward:+.4f}")
             break
 
-    return total_reward
+    return last_reward
 
 
 def main() -> None:
