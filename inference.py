@@ -135,7 +135,7 @@ class HttpEnv:
     def step(self, action: PromptZipAction, **kwargs) -> PromptZipObservation:
         resp = requests.post(
             f"{ENV_URL}/step",
-            json=action.model_dump(),
+            json={"action": action.model_dump()},
             timeout=60,
         )
         resp.raise_for_status()

@@ -13,8 +13,10 @@ from server.prompt_zip_environment import PromptZipEnvironment  # noqa: E402
 from openenv.core.env_server.http_server import create_app  # noqa: E402
 from models import PromptZipAction, PromptZipObservation  # noqa: E402
 
+_global_env = PromptZipEnvironment()
+
 app = create_app(
-    PromptZipEnvironment,
+    lambda: _global_env,
     PromptZipAction,
     PromptZipObservation,
     env_name="prompt_zip_env",
