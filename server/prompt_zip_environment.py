@@ -607,6 +607,5 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     
         return round(min(1.0, 0.6 * overlap + 0.4 * compression), 4)
 
-    @property
     def state(self) -> State:
         return self._state

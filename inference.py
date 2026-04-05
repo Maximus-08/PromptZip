@@ -21,7 +21,8 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from models import PromptZipAction
+from models import PromptZipAction, PromptZipObservation
+import requests
 
 load_dotenv()
 
@@ -31,6 +32,8 @@ MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 # Competition spec mandates OPENAI_API_KEY; HF_TOKEN is the fallback alias
 API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN") or ""
 DEBUG        = os.environ.get("DEBUG", "0") == "1"
+ENV_URL = os.environ.get("ENV_URL", "http://localhost:8000")
+USE_DIRECT = os.environ.get("USE_DIRECT", "0") == "1"
 
 MAX_STEPS    = 20
 TEMPERATURE  = 0.0
@@ -109,6 +112,43 @@ def log(msg: str) -> None:
         print(msg, flush=True)
 
 
+class HttpEnv:
+    """Thin HTTP wrapper so run_episode() works identically in server mode."""
+
+    def reset(self, difficulty: str = "medium", **kwargs) -> PromptZipObservation:
+        resp = requests.post(
+            f"{ENV_URL}/reset",
+            json={"difficulty": difficulty},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # Handle both flat observation and wrapped {"observation": {...}, "reward": ...}
+        if "observation" in data and isinstance(data["observation"], dict):
+            obs = data["observation"]
+            obs.setdefault("reward", data.get("reward"))
+            obs.setdefault("done", data.get("done", False))
+            obs.setdefault("metadata", data.get("info", {}))
+            data = obs
+        return PromptZipObservation.model_validate(data)
+
+    def step(self, action: PromptZipAction, **kwargs) -> PromptZipObservation:
+        resp = requests.post(
+            f"{ENV_URL}/step",
+            json=action.model_dump(),
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if "observation" in data and isinstance(data["observation"], dict):
+            obs = data["observation"]
+            obs.setdefault("reward", data.get("reward"))
+            obs.setdefault("done", data.get("done", False))
+            obs.setdefault("metadata", data.get("info", {}))
+            data = obs
+        return PromptZipObservation.model_validate(data)
+
+
 def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float:
     """Run one episode and return normalized score."""
     obs = env.reset(difficulty=difficulty)
@@ -178,16 +218,21 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
 
 
 def main() -> None:
-    from server.prompt_zip_environment import PromptZipEnvironment
-
     if not API_KEY:
         print("WARNING: API_KEY not set — inference calls may fail", flush=True)
 
     client = make_client()
-    env = PromptZipEnvironment()
+
+    if USE_DIRECT:
+        from server.prompt_zip_environment import PromptZipEnvironment
+        env = PromptZipEnvironment()
+        print("[DEBUG] Running in direct-import mode (USE_DIRECT=1)", flush=True)
+    else:
+        env = HttpEnv()
+        print(f"[DEBUG] Running in HTTP mode (ENV_URL={ENV_URL})", flush=True)
 
     difficulties = ["easy", "medium", "hard"]
-    episodes_per_difficulty = 2   # 6 total, well within 20-minute runtime
+    episodes_per_difficulty = 1  # 3 total, one per declared task
 
     results: dict[str, list[float]] = {d: [] for d in difficulties}
 
@@ -206,7 +251,7 @@ def main() -> None:
         scores = results[difficulty]
         avg = sum(scores) / len(scores) if scores else 0.0
         grand_total += avg
-        print(f"  {difficulty:8s}: avg={avg:+.4f}  ({scores})", flush=True)
+        print(f"  {difficulty:8s}: avg={avg:+.4f} ({scores})", flush=True)
     print(f"  {'TOTAL':8s}: {grand_total:+.4f}", flush=True)
     print("=" * 60, flush=True)
 
