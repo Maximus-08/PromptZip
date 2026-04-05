@@ -49,7 +49,7 @@ At each step, the agent targets one span via its UUID and applies one of three a
 The reward function provides dense intermediate signals per step plus a terminal judge score:
 - **Intermediate**: `(prev_tokens - new_tokens) / original_tokens × 0.5` for successful compression steps.
 - **Penalties**: `-0.1` for invalid actions, `-0.5` for eliding all spans (empty prompt).
-- **Final Reward**: `quality_score × (tokens_saved / tokens_original)`. Collapsed quality (<0.6) yields a `-0.5` penalty. Scores are strictly clamped between `[-1.0, 1.0]`.
+- **Final Reward**: `quality_score × (tokens_saved / tokens_original)`. Collapsed quality (<0.6) yields a `-0.5` penalty. Scores are strictly clamped between `[0.0, 1.0]`.
 
 ## Setup and Docker
 
@@ -67,6 +67,7 @@ The baseline client script uses the standard `openai` library compatible package
 export API_BASE_URL="https://api.openai.com/v1"
 export MODEL_NAME="gpt-4o-mini"
 export OPENAI_API_KEY="your_token_here"
+export GROQ_API_KEY="your_groq_key_here"  # optional for internal judge
 ```
 
 To run baseline execution:

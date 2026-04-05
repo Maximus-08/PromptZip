@@ -35,7 +35,7 @@ DEBUG        = os.environ.get("DEBUG", "0") == "1"
 MAX_STEPS    = 20
 TEMPERATURE  = 0.0
 MAX_TOKENS   = 256
-MAX_TOTAL_REWARD = 1.5
+MAX_TOTAL_REWARD = 1.0
 SUCCESS_SCORE_THRESHOLD = 0.4
 FALLBACK_ACTION = '{"action_type": "preserve", "span_id": "__fallback__"}'
 
@@ -99,7 +99,7 @@ def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 def log_step(step: int, action: str, reward: float, done: bool, error: str | None) -> None:
-    print(f"[STEP] step={step} action={action!r} reward={reward:+.4f} done={done} error={error}", flush=True)
+    print(f"[STEP] step={step} action={action!r} reward={reward:+.2f} done={done} error={error}", flush=True)
 
 def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     print(f"[END] success={success} steps={steps} score={score:.4f} rewards={rewards}", flush=True)

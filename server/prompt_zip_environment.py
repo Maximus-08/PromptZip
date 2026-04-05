@@ -31,7 +31,6 @@ DATASET: list[dict] = [
     # ── summarization (4) ──────────────────────
     {
         "task_type": "summarization",
-        "token_budget": 30,  # ~55% of ~55 token prompt
         "prompt": (
             "I would like you to please provide me with a very detailed and comprehensive "
             "summary of the main points covered in the following text. "
@@ -45,7 +44,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "Could you kindly take a moment to summarize, in as much detail as possible, "
             "the content of the following document? "
@@ -59,7 +57,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 29,  # ~55% of ~53 token prompt
         "prompt": (
             "For the purposes of this task, I need you to summarize the following text "
             "as thoroughly as possible, making sure not to leave out any crucial details. "
@@ -73,7 +70,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "summarization",
-        "token_budget": 26,  # ~55% of ~47 token prompt
         "prompt": (
             "Please help me by summarizing the passage below. "
             "I would really appreciate if you could be thorough and cover everything. "
@@ -88,7 +84,6 @@ DATASET: list[dict] = [
     # ── code_gen (4) ──────────────────────────
     {
         "task_type": "code_gen",
-        "token_budget": 30,  # ~55% of ~55 token prompt
         "prompt": (
             "I am hoping that you could help me with a Python programming task. "
             "I would really appreciate it if you could write a function that "
@@ -99,7 +94,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 27,  # ~55% of ~49 token prompt
         "prompt": (
             "Could you be so kind as to write a Python script for me? "
             "I need a function called `flatten` that takes a nested list "
@@ -110,7 +104,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 34,  # ~55% of ~62 token prompt
         "prompt": (
             "I am working on a project and I would be extremely grateful "
             "if you could help me write a Python class for a simple stack data structure. "
@@ -121,7 +114,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "code_gen",
-        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "I was wondering if perhaps you might be able to assist me with writing "
             "a Python function that checks whether a given string is a palindrome. "
@@ -132,7 +124,6 @@ DATASET: list[dict] = [
     # ── reasoning (4) ─────────────────────────
     {
         "task_type": "reasoning",
-        "token_budget": 33,  # ~55% of ~60 token prompt
         "prompt": (
             "I would like you to please think through the following problem "
             "step by step, being careful to show all of your reasoning. "
@@ -145,7 +136,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 29,  # ~55% of ~53 token prompt
         "prompt": (
             "Could you kindly reason through the following logical puzzle step by step? "
             "Please show every inference so your reasoning is easy to follow. "
@@ -158,7 +148,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 33,  # ~55% of ~60 token prompt
         "prompt": (
             "I am presenting you with a multi-step arithmetic problem "
             "and I would be grateful if you could walk me through each step carefully. "
@@ -170,7 +159,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "reasoning",
-        "token_budget": 28,  # ~55% of ~51 token prompt
         "prompt": (
             "Please take the time to carefully and thoroughly reason through the following question. "
             "Show your work and explain each logical step. "
@@ -182,7 +170,6 @@ DATASET: list[dict] = [
     # ── qa (4) ────────────────────────────────
     {
         "task_type": "qa",
-        "token_budget": 20,  # ~55% of ~36 token prompt
         "prompt": (
             "I was hoping you might be able to help me answer a question. "
             "I would greatly appreciate a concise and accurate response. "
@@ -192,7 +179,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 23,  # ~55% of ~42 token prompt
         "prompt": (
             "Could you please be so kind as to tell me the answer to the following question? "
             "I understand this may be a simple question but I want to make sure I get it right. "
@@ -202,7 +188,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 22,  # ~55% of ~40 token prompt
         "prompt": (
             "I would really appreciate it if you could help me out with a trivia question. "
             "Please give me a direct and accurate answer. "
@@ -212,7 +197,6 @@ DATASET: list[dict] = [
     },
     {
         "task_type": "qa",
-        "token_budget": 24,  # ~55% of ~44 token prompt
         "prompt": (
             "Thank you so much for taking the time to assist me with this. "
             "I have a factual question and I am hoping you can provide a clear answer. "
@@ -594,8 +578,8 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         return self._build_obs(reward=step_reward, done=False)
 
+    @staticmethod
     def grade(
-        self,
         original_prompt: str,
         compressed_prompt: str,
         original_output: str,
