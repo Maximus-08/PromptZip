@@ -6,41 +6,47 @@ the PromptZip environment. The LLM is shown the current observation and
 must output one action per step.
 
 Required environment variables:
-    API_BASE_URL   — OpenAI-compatible endpoint (e.g. https://api.openai.com/v1)
-    MODEL_NAME     — Model identifier (e.g. gpt-4o-mini)
-    HF_TOKEN       — API key for the inference endpoint
+  API_BASE_URL  — OpenAI-compatible endpoint (e.g. https://api.openai.com/v1)
+  MODEL_NAME    — Model identifier (e.g. gpt-4o-mini)
+  HF_TOKEN      — API key for the inference endpoint
 
 Optional:
-    GROQ_API_KEY   — Groq key for environment's internal Judge (mock if unset)
-    DEBUG          — Set to "1" for verbose logging
+  GROQ_API_KEY  — Groq key for environment's internal Judge (mock if unset)
+  DEBUG         — Set to "1" for verbose logging
 """
 
 import json
 import os
-
 from dotenv import load_dotenv
 from openai import OpenAI
-
 from models import PromptZipAction, PromptZipObservation
 import requests
 
 load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
+
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 # Competition spec mandates OPENAI_API_KEY; HF_TOKEN is the fallback alias
-API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN") or ""
+API_KEY      = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN") or ""
 DEBUG        = os.environ.get("DEBUG", "0") == "1"
-ENV_URL = os.environ.get("ENV_URL", "http://localhost:8000")
-USE_DIRECT = os.environ.get("USE_DIRECT", "0") == "1"
+ENV_URL      = os.environ.get("ENV_URL", "http://localhost:8000")
+USE_DIRECT   = os.environ.get("USE_DIRECT", "0") == "1"
 
-MAX_STEPS    = 20
-TEMPERATURE  = 0.0
-MAX_TOKENS   = 256
-MAX_TOTAL_REWARD = 1.0
+MAX_STEPS             = 20
+TEMPERATURE           = 0.0
+MAX_TOKENS            = 256
+MAX_TOTAL_REWARD      = 1.0
 SUCCESS_SCORE_THRESHOLD = 0.4
-FALLBACK_ACTION = '{"action_type": "preserve", "span_id": "__fallback__"}'
+FALLBACK_ACTION       = '{"action_type": "preserve", "span_id": "__fallback__"}'
+
+# Maps difficulty tier → canonical task name for log_start (called before reset())
+_DIFFICULTY_TASK: dict[str, str] = {
+    "easy":   "qa",
+    "medium": "summarization",
+    "hard":   "reasoning",
+}
 
 SYSTEM_PROMPT = """\
 You are a prompt compression agent. You receive a bloated LLM prompt split into
@@ -48,11 +54,10 @@ sentence-level spans, each identified by a UUID. Your goal is to reduce the toke
 count below the token_budget while preserving the semantic meaning of the prompt.
 
 At each step you must output exactly ONE JSON action:
-
-  {"action_type": "<elide|rephrase|preserve>", "span_id": "<uuid>"}
+{"action_type": "<elide|rephrase|preserve>", "span_id": "<uuid>"}
 
 Rules:
-- elide: delete the span entirely — use for filler, polite preambles, redundant text
+- elide:    delete the span entirely — use for filler, polite preambles, redundant text
 - rephrase: keep the span but flag it for rewriting to fewer words — use for verbose but necessary content
 - preserve: lock the span unchanged — use for task-critical instructions or factual data
 - Never target a span_id that is in locked_spans
@@ -69,7 +74,6 @@ def make_client() -> OpenAI:
 def parse_action(text: str) -> dict:
     """Extract JSON action from model output, with fallback."""
     text = text.strip()
-    # Try to find first {...} block
     start, end = text.find("{"), text.rfind("}")
     if start != -1 and end != -1:
         candidate = text[start:end + 1]
@@ -85,7 +89,7 @@ def obs_to_user_message(obs) -> str:
     unlocked = {k: v for k, v in obs.spans.items() if k not in obs.locked_spans}
     lines = [
         f"task_type: {obs.task_type}",
-        f"token_count: {obs.token_count}  (budget: {obs.token_budget})",
+        f"token_count: {obs.token_count} (budget: {obs.token_budget})",
         f"tokens_to_remove: {max(0, obs.token_count - obs.token_budget)}",
         "",
         "Available spans (uuid → text):",
@@ -101,11 +105,14 @@ def obs_to_user_message(obs) -> str:
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
+
 def log_step(step: int, action: str, reward: float, done: bool, error: str | None) -> None:
     print(f"[STEP] step={step} action={action!r} reward={reward:+.2f} done={done} error={error}", flush=True)
 
+
 def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     print(f"[END] success={success} steps={steps} score={score:.4f} rewards={rewards}", flush=True)
+
 
 def log(msg: str) -> None:
     if DEBUG:
@@ -115,19 +122,18 @@ def log(msg: str) -> None:
 class HttpEnv:
     """Thin HTTP wrapper so run_episode() works identically in server mode."""
 
-    def reset(self, difficulty: str = "medium", **kwargs) -> PromptZipObservation:
-        resp = requests.post(
-            f"{ENV_URL}/reset",
-            json={"difficulty": difficulty},
-            timeout=60,
-        )
+    def reset(self, difficulty: str = "medium", seed: int | None = None, **kwargs) -> PromptZipObservation:
+        payload: dict = {"difficulty": difficulty}
+        if seed is not None:
+            payload["seed"] = seed
+        resp = requests.post(f"{ENV_URL}/reset", json=payload, timeout=60)
         resp.raise_for_status()
         data = resp.json()
         # Handle both flat observation and wrapped {"observation": {...}, "reward": ...}
         if "observation" in data and isinstance(data["observation"], dict):
             obs = data["observation"]
-            obs.setdefault("reward", data.get("reward"))
-            obs.setdefault("done", data.get("done", False))
+            obs.setdefault("reward",   data.get("reward"))
+            obs.setdefault("done",     data.get("done", False))
             obs.setdefault("metadata", data.get("info", {}))
             data = obs
         return PromptZipObservation.model_validate(data)
@@ -142,20 +148,20 @@ class HttpEnv:
         data = resp.json()
         if "observation" in data and isinstance(data["observation"], dict):
             obs = data["observation"]
-            obs.setdefault("reward", data.get("reward"))
-            obs.setdefault("done", data.get("done", False))
+            obs.setdefault("reward",   data.get("reward"))
+            obs.setdefault("done",     data.get("done", False))
             obs.setdefault("metadata", data.get("info", {}))
             data = obs
         return PromptZipObservation.model_validate(data)
 
 
-def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float:
+def run_episode(env, client: OpenAI, difficulty: str, episode_num: int, seed: int = 0) -> float:
     """Run one episode and return normalized score."""
-    obs = env.reset(difficulty=difficulty)
-    log_start(task=obs.task_type, env=difficulty, model=MODEL_NAME)
+    # log_start BEFORE reset() per OpenEnv evaluator spec
+    log_start(task=_DIFFICULTY_TASK.get(difficulty, difficulty), env=difficulty, model=MODEL_NAME)
+    obs = env.reset(difficulty=difficulty, seed=seed)
 
-    last_reward = 0.0
-    rewards = []
+    rewards: list[float] = []
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     steps_taken = 0
 
@@ -187,7 +193,7 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
         unlocked = [s for s in obs.spans if s not in obs.locked_spans]
         if span_id not in obs.spans or span_id in obs.locked_spans:
             if unlocked:
-                action_dict["span_id"] = unlocked[0]
+                action_dict["span_id"]     = unlocked[0]
                 action_dict["action_type"] = "preserve"
             else:
                 obs = env.step(PromptZipAction(action_type="preserve", span_id=list(obs.spans.keys())[0]))
@@ -200,10 +206,9 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
         obs = env.step(action)
 
         step_reward = obs.reward if obs.reward is not None else 0.0
-        last_reward = step_reward
         rewards.append(step_reward)
         steps_taken = step
-        
+
         log_step(step=step, action=response_text, reward=step_reward, done=obs.done, error=None)
 
         if obs.done:
@@ -212,8 +217,8 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int) -> float
     score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
     score = min(max(score, 0.0), 1.0)
     success = score >= SUCCESS_SCORE_THRESHOLD
+
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
-    
     return score
 
 
@@ -231,15 +236,15 @@ def main() -> None:
         env = HttpEnv()
         print(f"[DEBUG] Running in HTTP mode (ENV_URL={ENV_URL})", flush=True)
 
-    difficulties = ["easy", "medium", "hard"]
-    episodes_per_difficulty = 1  # 3 total, one per declared task
+    difficulties         = ["easy", "medium", "hard"]
+    episodes_per_difficulty = 3  # 9 total; seeds 0/1/2 sample different prompts per tier
 
     results: dict[str, list[float]] = {d: [] for d in difficulties}
-
     episode_num = 1
+
     for difficulty in difficulties:
-        for _ in range(episodes_per_difficulty):
-            reward = run_episode(env, client, difficulty, episode_num)
+        for seed in range(episodes_per_difficulty):
+            reward = run_episode(env, client, difficulty, episode_num, seed=seed)
             results[difficulty].append(reward)
             episode_num += 1
 
@@ -249,7 +254,7 @@ def main() -> None:
     grand_total = 0.0
     for difficulty in difficulties:
         scores = results[difficulty]
-        avg = sum(scores) / len(scores) if scores else 0.0
+        avg    = sum(scores) / len(scores) if scores else 0.0
         grand_total += avg
         print(f"  {difficulty:8s}: avg={avg:+.4f} ({scores})", flush=True)
     print(f"  {'TOTAL':8s}: {grand_total:+.4f}", flush=True)

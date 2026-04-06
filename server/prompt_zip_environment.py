@@ -7,8 +7,9 @@ the initial PromptZipObservation.
 
 step(action) applies one of: elide, rephrase, preserve to the targeted
 span, computes intermediate reward, and checks termination conditions.
+
 At the end of an episode (budget met or max_steps hit) calls the Judge
-for final reward. Short-circuits all-locked or empty-prompt states.
+for final reward.  Short-circuits all-locked or empty-prompt states.
 """
 
 import logging
@@ -19,7 +20,6 @@ from typing import Any, Optional
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
-
 from models import PromptZipAction, PromptZipObservation
 
 log = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 # ──────────────────────────────────────────────
 # Hardcoded dataset: 4 per task type = 16 total
 # ──────────────────────────────────────────────
+
 DATASET: list[dict] = [
     # ── summarization (4) ──────────────────────
     {
@@ -81,6 +82,7 @@ DATASET: list[dict] = [
             "chains on Earth."
         ),
     },
+
     # ── code_gen (4) ──────────────────────────
     {
         "task_type": "code_gen",
@@ -121,7 +123,11 @@ DATASET: list[dict] = [
             "Please include any edge case handling you think might be relevant."
         ),
     },
+
     # ── reasoning (4) ─────────────────────────
+    # Two original simple prompts kept as baseline anchors.
+    # Two replaced with genuinely hard prompts where every sentence is load-bearing:
+    # removing any single constraint changes the valid answer.
     {
         "task_type": "reasoning",
         "prompt": (
@@ -135,26 +141,38 @@ DATASET: list[dict] = [
         ),
     },
     {
+        # HARD — multi-constraint scheduling: every availability clause is essential.
+        # Removing any single sentence changes which slot (if any) is valid.
         "task_type": "reasoning",
         "prompt": (
-            "Could you kindly reason through the following logical puzzle step by step? "
-            "Please show every inference so your reasoning is easy to follow. "
-            "Puzzle: "
-            "All plants need water. "
-            "Cacti are plants. "
-            "Does a cactus need water? "
-            "Explain your reasoning thoroughly."
+            "I need you to carefully work through the following scheduling problem. "
+            "Show every step and apply each constraint explicitly. "
+            "Problem: "
+            "Alice, Bob, and Carol must find a two-hour morning slot for a team meeting. "
+            "Alice is unavailable all day Wednesday and every Thursday afternoon. "
+            "Bob is only free on Tuesday morning, Wednesday morning, or Friday afternoon. "
+            "Carol cannot attend any morning slot on Tuesday or Wednesday, "
+            "and she has a standing conflict that blocks the entire day every Friday. "
+            "The meeting must occur in the morning. "
+            "List every candidate slot, eliminate those blocked by each person's constraints, "
+            "and state the single valid option that satisfies all three schedules."
         ),
     },
     {
+        # HARD — Bayes' theorem with interleaved numeric conditions.
+        # Each sentence supplies a distinct probability needed for the calculation;
+        # omitting any one makes the problem unsolvable or changes the answer.
         "task_type": "reasoning",
         "prompt": (
-            "I am presenting you with a multi-step arithmetic problem "
-            "and I would be grateful if you could walk me through each step carefully. "
-            "Please be explicit and do not skip intermediate calculations. "
+            "I would like you to work through the following probability problem step by step. "
+            "Please apply Bayes' theorem explicitly and show every intermediate calculation. "
             "Problem: "
-            "A store sells apples for $0.50 each and oranges for $0.75 each. "
-            "If a customer buys 4 apples and 3 oranges, how much do they spend in total?"
+            "A factory operates two production lines: Line A produces 60 percent of all units "
+            "and Line B produces the remaining 40 percent. "
+            "Line A has a defect rate of 3 percent and Line B has a defect rate of 7 percent. "
+            "A quality inspector randomly selects a unit and finds it is defective. "
+            "What is the probability that the defective unit came from Line A? "
+            "Express your final answer as a percentage rounded to two decimal places."
         ),
     },
     {
@@ -167,6 +185,7 @@ DATASET: list[dict] = [
             "Please justify your answer with geometric reasoning."
         ),
     },
+
     # ── qa (4) ────────────────────────────────
     {
         "task_type": "qa",
@@ -206,9 +225,11 @@ DATASET: list[dict] = [
     },
 ]
 
+
 # ──────────────────────────────────────────────
 # Token counting
 # ──────────────────────────────────────────────
+
 def _count_tokens(text: str) -> int:
     return max(1, int(len(text.split()) * 1.3))
 
@@ -216,53 +237,60 @@ def _count_tokens(text: str) -> int:
 # ──────────────────────────────────────────────
 # Sentence splitter — preserves separators
 # ──────────────────────────────────────────────
-_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+_SENT_RE  = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _PARA_SEP = "\n\n"
+
 
 def _segment(text: str) -> tuple[dict[str, str], dict[str, str]]:
     """Split text into spans, preserving the separator used after each span.
 
     Returns:
-        spans    - {uuid: span_text}
-        seps     - {uuid: separator_that_followed_span}  ("" for the last span)
+        spans - {uuid: span_text}
+        seps  - {uuid: separator_that_followed_span} ("" for the last span)
     """
-    # First split on paragraph breaks to preserve them
     paragraphs = re.split(r"(\n\n+)", text.strip())
-    parts: list[str] = []
+    parts:     list[str] = []
     part_seps: list[str] = []
+
     i = 0
     while i < len(paragraphs):
-        block = paragraphs[i].strip()
-        sep_after = paragraphs[i + 1] if i + 1 < len(paragraphs) and re.match(r"^\n\n+$", paragraphs[i + 1]) else ""
+        block   = paragraphs[i].strip()
+        sep_after = (
+            paragraphs[i + 1]
+            if i + 1 < len(paragraphs) and re.match(r"^\n\n+$", paragraphs[i + 1])
+            else ""
+        )
         if sep_after:
             i += 2
         else:
             i += 1
+
         if not block:
             continue
-        # Further split paragraph into sentences
+
         sentences = _SENT_RE.split(block)
         for j, s in enumerate(sentences):
             s = s.strip()
             if not s:
                 continue
             parts.append(s)
-            # Only the last sentence of a paragraph gets the paragraph separator
             part_seps.append(sep_after if j == len(sentences) - 1 else " ")
 
     if not parts:
-        parts = [text.strip()]
+        parts     = [text.strip()]
         part_seps = [""]
 
     uuids = [str(uuid.uuid4()) for _ in parts]
     spans = {u: p for u, p in zip(uuids, parts)}
-    seps = {u: s for u, s in zip(uuids, part_seps)}
+    seps  = {u: s for u, s in zip(uuids, part_seps)}
     return spans, seps
 
 
 # ──────────────────────────────────────────────
 # Groq client wrapper with timeout + fallback
 # ──────────────────────────────────────────────
+
 class _GroqClient:
     def __init__(self) -> None:
         self._client: Any = None
@@ -300,16 +328,14 @@ class _GroqClient:
                     "role": "user",
                     "content": (
                         "Rewrite the following to convey the same meaning in fewer words. "
-                        "Return only the rewritten text, no explanation.\n\n"
-                        + span
+                        "Return only the rewritten text, no explanation.\n\n" + span
                     ),
                 }
             ],
         )
         if not result:
-            # Mock fallback: return span truncated to ~60%
             words = span.split()
-            return " ".join(words[:max(1, int(len(words) * 0.6))])
+            return " ".join(words[: max(1, int(len(words) * 0.6))])
         return result
 
     def generate(self, prompt: str) -> str:
@@ -332,8 +358,8 @@ class _GroqClient:
             f"Task type: {task_type}\n\n"
             f"Original prompt:\n<prompt>\n{original_prompt}\n</prompt>\n\n"
             f"Compressed prompt:\n<prompt>\n{compressed_prompt}\n</prompt>\n\n"
-            f"Original output:\n<output>\n{original_output}\n</output>\n\n"
-            f"Compressed output:\n<output>\n{compressed_output}\n</output>\n\n"
+            f"Original output:\n<o>\n{original_output}\n</o>\n\n"
+            f"Compressed output:\n<o>\n{compressed_output}\n</o>\n\n"
             "Score the compressed output on a scale from 0 to 10 based on:\n"
             "1. Semantic preservation (0-2.5)\n"
             "2. Factual accuracy (0-2.5)\n"
@@ -359,6 +385,7 @@ class _GroqClient:
 # ──────────────────────────────────────────────
 # Environment
 # ──────────────────────────────────────────────
+
 class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     """RL environment for compressing LLM prompts via span-level actions."""
 
@@ -371,18 +398,18 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._state = State(episode_id=None, step_count=0)
 
         # Episode state
-        self._spans: dict[str, str] = {}
-        self._seps: dict[str, str] = {}  # separator after each span (" " or "\n\n")
-        self._locked_spans: list[str] = []
-        self._action_history: list[dict] = []
-        self._task_type: str = "summarization"
-        self._token_budget: int = 20
-        self._original_token_count: int = 0
-        self._initial_span_count: int = 0
-        self._original_prompt: str = ""   # stored at reset() — avoids stale index
-        self._original_output: str = ""
-        self._done: bool = False
-        self._last_obs: Optional[PromptZipObservation] = None
+        self._spans:              dict[str, str]  = {}
+        self._seps:               dict[str, str]  = {}
+        self._locked_spans:       list[str]        = []
+        self._action_history:     list[dict]       = []
+        self._task_type:          str              = "summarization"
+        self._token_budget:       int              = 20
+        self._original_token_count: int            = 0
+        self._initial_span_count: int              = 0
+        self._original_prompt:    str              = ""
+        self._original_output:    str              = ""
+        self._done:               bool             = False
+        self._last_obs:           Optional[PromptZipObservation] = None
 
     # ── internal helpers ──────────────────────
 
@@ -400,7 +427,9 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     def _token_count(self) -> int:
         return _count_tokens(self._prompt_text())
 
-    def _build_obs(self, reward: float | None, done: bool, metadata: Optional[dict] = None) -> PromptZipObservation:
+    def _build_obs(
+        self, reward: float | None, done: bool, metadata: Optional[dict] = None
+    ) -> PromptZipObservation:
         obs = PromptZipObservation(
             done=done,
             reward=reward,
@@ -417,14 +446,15 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         return obs
 
     def _is_terminated(self) -> bool:
-        tc = self._token_count()
+        tc         = self._token_count()
         step_limit = self._state.step_count >= 2 * self._initial_span_count
         return tc <= self._token_budget or step_limit
 
     def _run_judge_flow(self) -> float:
-        compressed_prompt = self._prompt_text()
-        compressed_output = self._groq.generate(compressed_prompt)
-        tokens_saved = self._original_token_count - self._token_count()
+        compressed_prompt  = self._prompt_text()
+        compressed_output  = self._groq.generate(compressed_prompt)
+        tokens_saved       = self._original_token_count - self._token_count()
+
         raw_score = self._groq.judge(
             original_prompt=self._original_prompt,
             compressed_prompt=compressed_prompt,
@@ -433,74 +463,67 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             task_type=self._task_type,
         )
         quality = raw_score / 10.0  # normalize 0–10 → 0.0–1.0
-        final = quality * (tokens_saved / self._original_token_count) if self._original_token_count else 0.0
+        final   = quality * (tokens_saved / self._original_token_count) if self._original_token_count else 0.0
         if quality < 0.6:
-            final -= 0.5  # penalty for quality collapse
-        final = max(0.0, min(1.0, final))  # clamp to valid reward bounding range
-        return final
+            final -= 0.5
+        return max(0.0, min(1.0, final))
 
     # ── OpenEnv API ───────────────────────────
 
     def reset(
         self,
-        seed: Optional[int] = None,
+        seed:       Optional[int] = None,
         episode_id: Optional[str] = None,
-        difficulty: str = "medium",
-        **kwargs: Any,
+        difficulty: str           = "medium",
+        **kwargs:   Any,
     ) -> PromptZipObservation:
         """Load the next prompt, segment into spans, pre-generate original_output."""
-        self._done = False
+        self._done           = False
         self._action_history = []
-        self._locked_spans = []
+        self._locked_spans   = []
 
-        # Difficulty-based dataset filtering
         _tier_map: dict[str, list[str]] = {
             "easy":   ["qa"],
             "medium": ["summarization", "code_gen"],
             "hard":   ["reasoning"],
         }
         allowed = _tier_map.get(difficulty, ["summarization", "code_gen"])
-        pool = [e for e in DATASET if e["task_type"] in allowed]
+        pool    = [e for e in DATASET if e["task_type"] in allowed]
         if not pool:
-            pool = DATASET  # fallback: use all
+            pool = DATASET
 
         if seed is not None:
             self._dataset_idx = seed % len(pool)
-
         entry = pool[self._dataset_idx % len(pool)]
         self._dataset_idx += 1
-        self._task_type = entry["task_type"]
-        
-        self._spans, self._seps = _segment(entry["prompt"])
-        self._original_prompt = self._prompt_text()
-        self._original_token_count = self._token_count()
-        self._token_budget = max(1, int(self._original_token_count * 0.55))
-        self._initial_span_count = len(self._spans) or 1
 
-        self._original_output = self._groq.generate(entry["prompt"])
+        self._task_type           = entry["task_type"]
+        self._spans, self._seps   = _segment(entry["prompt"])
+        self._original_prompt     = self._prompt_text()
+        self._original_token_count = self._token_count()
+        self._token_budget        = max(1, int(self._original_token_count * 0.55))
+        self._initial_span_count  = len(self._spans) or 1
+        self._original_output     = self._groq.generate(entry["prompt"])
 
         self._state = State(
             episode_id=episode_id or str(uuid.uuid4()),
             step_count=0,
         )
-
         return self._build_obs(reward=None, done=False)
 
     def step(
         self,
-        action: PromptZipAction,
+        action:    PromptZipAction,
         timeout_s: Optional[float] = None,
-        **kwargs: Any,
+        **kwargs:  Any,
     ) -> PromptZipObservation:
         """Apply one compression action and return the updated observation."""
-        # Post-done guard
         if self._done:
             return self._build_obs(reward=0.0, done=True, metadata={"info": "episode already done"})
 
-        # Step-limit guard — checked BEFORE action so episodes always terminate
         if self._state.step_count >= 2 * self._initial_span_count:
-            self._done = True
-            final_reward = self._run_judge_flow()
+            self._done      = True
+            final_reward    = self._run_judge_flow()
             return self._build_obs(
                 reward=final_reward,
                 done=True,
@@ -509,7 +532,6 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         self._state.step_count += 1
 
-        # Invalid or locked span guard
         if action.span_id not in self._spans or action.span_id in self._locked_spans:
             return self._build_obs(
                 reward=-0.1,
@@ -519,12 +541,9 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         prev_tokens = self._token_count()
 
-        # ── Execute action ────────────────────
         if action.action_type == "elide":
             del self._spans[action.span_id]
             self._seps.pop(action.span_id, None)
-
-            # Empty-prompt guard: all spans gone → penalise, terminate
             if not self._spans:
                 self._done = True
                 return self._build_obs(
@@ -532,25 +551,23 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                     done=True,
                     metadata={"info": "all spans elided — destroying meaning"},
                 )
-
         elif action.action_type == "rephrase":
-            original_span = self._spans[action.span_id]
-            rewritten = self._groq.rewrite(original_span)
-            self._spans[action.span_id] = rewritten
-
+            original_span              = self._spans[action.span_id]
+            self._spans[action.span_id] = self._groq.rewrite(original_span)
         elif action.action_type == "preserve":
             self._locked_spans.append(action.span_id)
 
         self._action_history.append({"action_type": action.action_type, "span_id": action.span_id})
 
-        new_tokens = self._token_count()
-        step_reward = (prev_tokens - new_tokens) / self._original_token_count * 0.5 if self._original_token_count else 0.0
+        new_tokens  = self._token_count()
+        step_reward = (
+            (prev_tokens - new_tokens) / self._original_token_count * 0.5
+            if self._original_token_count else 0.0
+        )
 
-        # ── Termination checks ────────────────
         all_locked = set(self._locked_spans) >= set(self._spans.keys())
         if all_locked:
             if self._token_count() >= self._original_token_count:
-                # Short-circuit ONLY if absolutely no compression was achieved
                 self._done = True
                 return self._build_obs(
                     reward=0.0,
@@ -558,8 +575,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                     metadata={"info": "all spans locked without compression — skip judge"},
                 )
             else:
-                # Compression was achieved, so we must run the judge
-                self._done = True
+                self._done   = True
                 final_reward = self._run_judge_flow()
                 return self._build_obs(
                     reward=max(0.0, min(1.0, step_reward + final_reward)),
@@ -568,7 +584,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                 )
 
         if self._is_terminated():
-            self._done = True
+            self._done   = True
             final_reward = self._run_judge_flow()
             return self._build_obs(
                 reward=max(0.0, min(1.0, step_reward + final_reward)),
@@ -579,33 +595,75 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         return self._build_obs(reward=step_reward, done=False)
 
     @staticmethod
-    def grade(
-        original_prompt: str,
-        compressed_prompt: str,
-        original_output: str,
-        compressed_output: str,
-        task_type: str,
-    ) -> float:
-        """Standalone API for grading compressed prompt quality [0.0 - 1.0]."""
-        # Compression ratio (how much did we shrink the prompt?)
-        orig_len = max(1, len(original_prompt.split()))
-        comp_len = len(compressed_prompt.split())
-        compression = max(0.0, 1.0 - comp_len / orig_len)   # 0 = no compression, 1 = everything removed
-    
+    def grade(*args: Any, **kwargs: Any) -> float:
+        """Standalone grader for compressed prompt quality [0.0 – 1.0].
+
+        Accepts two calling conventions so the method is robust regardless of
+        how the evaluation harness invokes it:
+
+        Convention 1 — explicit positional (our own inference.py / openenv.yaml):
+            grade(original_prompt, compressed_prompt, original_output,
+                  compressed_output, task_type)
+
+        Convention 2 — framework Rubric-style (action, observation) or (observation,):
+            grade(action, observation)  or  grade(observation)
+            Fields are extracted from the Pydantic models; compression ratio is
+            computed from token_count vs the original_token_count proxy.
+
+        Convention 3 — keyword args:
+            grade(original_prompt=..., compressed_prompt=..., ...)
+        """
+        # ── Resolve arguments ─────────────────────────────────────────────
+        if len(args) == 5 and isinstance(args[0], str):
+            # Convention 1: all five strings supplied positionally
+            original_prompt, compressed_prompt, original_output, compressed_output, task_type = args
+
+        elif len(args) == 2:
+            # Convention 2a: (action, observation)
+            _action, obs = args
+            original_prompt   = getattr(obs, "prompt_text", "") or ""
+            compressed_prompt = original_prompt  # best proxy without before/after capture
+            original_output   = ""
+            compressed_output = ""
+            task_type         = getattr(obs, "task_type", "qa")
+
+        elif len(args) == 1:
+            # Convention 2b: (observation,)
+            obs               = args[0]
+            original_prompt   = getattr(obs, "prompt_text", "") or ""
+            compressed_prompt = original_prompt
+            original_output   = ""
+            compressed_output = ""
+            task_type         = getattr(obs, "task_type", "qa")
+
+        else:
+            # Convention 3: keyword args (or empty call — graceful fallback)
+            original_prompt   = str(kwargs.get("original_prompt",   ""))
+            compressed_prompt = str(kwargs.get("compressed_prompt", original_prompt))
+            original_output   = str(kwargs.get("original_output",   ""))
+            compressed_output = str(kwargs.get("compressed_output", ""))
+            task_type         = str(kwargs.get("task_type",         "qa"))
+
+        # ── Compute score ─────────────────────────────────────────────────
+        orig_len    = max(1, len(original_prompt.split()))
+        comp_len    = len(compressed_prompt.split())
+        compression = max(0.0, 1.0 - comp_len / orig_len)
+
         # Guard: if outputs are missing/mock, fall back to compression-only score
         if not original_output or not compressed_output or original_output == "[mock output]":
             return round(min(1.0, compression), 4)
-            
-        # Semantic preservation (token overlap of outputs — proxy for meaning retention)
+
         orig_toks = set(original_output.lower().split())
         comp_toks = set(compressed_output.lower().split())
-        overlap = len(orig_toks & comp_toks) / max(len(orig_toks), 1)
-    
+        overlap   = len(orig_toks & comp_toks) / max(len(orig_toks), 1)
+
         # Penalise over-compression (> 80% reduction likely destroys meaning)
         if compression > 0.8:
             compression *= 0.5
-    
+
         return round(min(1.0, 0.6 * overlap + 0.4 * compression), 4)
 
+    @property
     def state(self) -> State:
+        """Implements the @property declared in the Environment ABC."""
         return self._state

@@ -13,15 +13,17 @@ class PromptZipAction(Action):
 class PromptZipObservation(Observation):
     """Full episode state returned by reset() and step()."""
 
-    # Explicitly redefined from base for safety across framework versions
-    done: bool = False
-    reward: bool | int | float | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    # Explicitly redefined from base for safety across framework versions.
+    # reward is float | None (stricter than base class bool|int|float|None —
+    # we only ever emit floats or None so this is safe to narrow).
+    done:     bool              = False
+    reward:   float | None      = None
+    metadata: dict[str, Any]    = Field(default_factory=dict)
 
-    prompt_text: str
-    spans: dict[str, str]          # {uuid: span_text} — stable across elides
-    token_count: int               # approx: len(words) * 1.3
-    task_type: str                 # summarization | code_gen | reasoning | qa
-    token_budget: int
-    action_history: list[dict]     # [{"action_type": ..., "span_id": ...}, ...]
-    locked_spans: list[str]        # UUIDs of preserved spans
+    prompt_text:    str          # full reassembled prompt text
+    spans:          dict[str, str]  # {uuid: span_text} — stable across elides
+    token_count:    int          # approx: len(words) * 1.3
+    task_type:      str          # summarization | code_gen | reasoning | qa
+    token_budget:   int
+    action_history: list[dict]   # [{"action_type": ..., "span_id": ...}, ...]
+    locked_spans:   list[str]    # UUIDs of preserved spans
