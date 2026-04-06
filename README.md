@@ -84,9 +84,9 @@ python inference.py
 
 ### Reproducible Baseline Scores
 
-Running `gpt-4o-mini` on the environment yields the following scores (aggregated across seeds):
-- **easy**: ~ +0.5520 
-- **medium**: ~ +0.4851
-- **hard**: ~ +0.3210
+Running `llama-3.3-70b-versatile` on the environment yields the following scores (aggregated across seeds):
+- **easy**: ~ +0.9320 
+- **medium**: ~ +0.6569
+- **hard**: ~ +0.4879
 
 *(Note: These baseline scores were generated with `GROQ_API_KEY` set to enable the full LLM semantic judge. Exact numbers vary per sample but consistently drop according to difficulty.)*
