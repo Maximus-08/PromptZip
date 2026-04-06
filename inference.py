@@ -155,10 +155,13 @@ class HttpEnv:
         return PromptZipObservation.model_validate(data)
 
 
-def run_episode(env, client: OpenAI, difficulty: str, episode_num: int, seed: int = 0) -> float:
-    """Run one episode and return normalized score."""
-    # log_start BEFORE reset() per OpenEnv evaluator spec
-    log_start(task=_DIFFICULTY_TASK.get(difficulty, difficulty), env=difficulty, model=MODEL_NAME)
+def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[float, bool, int, list[float]]:
+    """Run one episode and return (score, success, steps_taken, rewards).
+
+    Note: [START]/[END] log pairs are emitted by the caller (main) at
+    task/tier level, not per episode, to match the evaluator's expectation
+    of exactly one pair per difficulty tier (3 pairs total).
+    """
     obs = env.reset(difficulty=difficulty, seed=seed)
 
     rewards: list[float] = []
@@ -214,12 +217,9 @@ def run_episode(env, client: OpenAI, difficulty: str, episode_num: int, seed: in
         if obs.done:
             break
 
-    score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
-    score = min(max(score, 0.0), 1.0)
+    score   = min(max(sum(rewards) / MAX_TOTAL_REWARD, 0.0), 1.0) if MAX_TOTAL_REWARD > 0 else 0.0
     success = score >= SUCCESS_SCORE_THRESHOLD
-
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
-    return score
+    return score, success, steps_taken, rewards
 
 
 def main() -> None:
@@ -236,17 +236,29 @@ def main() -> None:
         env = HttpEnv()
         print(f"[DEBUG] Running in HTTP mode (ENV_URL={ENV_URL})", flush=True)
 
-    difficulties         = ["easy", "medium", "hard"]
-    episodes_per_difficulty = 3  # 9 total; seeds 0/1/2 sample different prompts per tier
+    difficulties            = ["easy", "medium", "hard"]
+    episodes_per_difficulty = 3  # seeds 0/1/2 sample different prompts per tier
 
     results: dict[str, list[float]] = {d: [] for d in difficulties}
-    episode_num = 1
 
     for difficulty in difficulties:
+        # One [START]/[END] pair per difficulty tier (3 total) — evaluator spec.
+        log_start(task=_DIFFICULTY_TASK.get(difficulty, difficulty), env=difficulty, model=MODEL_NAME)
+
+        all_rewards:  list[float] = []
+        all_steps:    int         = 0
+        tier_success: bool        = False
+
         for seed in range(episodes_per_difficulty):
-            reward = run_episode(env, client, difficulty, episode_num, seed=seed)
-            results[difficulty].append(reward)
-            episode_num += 1
+            score, success, steps, rewards = run_episode(env, client, difficulty, seed=seed)
+            results[difficulty].append(score)
+            all_rewards.extend(rewards)
+            all_steps += steps
+            if success:
+                tier_success = True
+
+        tier_avg = sum(results[difficulty]) / len(results[difficulty])
+        log_end(success=tier_success, steps=all_steps, score=tier_avg, rewards=all_rewards)
 
     print("\n" + "=" * 60, flush=True)
     print("BASELINE SCORES", flush=True)

@@ -372,14 +372,17 @@ class _GroqClient:
             messages=[{"role": "user", "content": judge_prompt}],
         )
         if not result:
-            log.warning("Groq judge call failed — using 10.0 fallback (deterministic token-reduction ratio)")
-            return 10.0
+            # Cap at 5.0 (not 10.0) so offline mode cannot reward-hack via
+            # perfect quality scores.  The system degrades to a deterministic
+            # compression-ratio-only grader at ~50% quality.
+            log.warning("Groq judge call failed — using 5.0 fallback (deterministic token-reduction ratio)")
+            return 5.0
         try:
             score = float(result.strip().split()[0])
             return max(0.0, min(10.0, score))
         except (ValueError, IndexError):
-            log.warning("Groq judge parsing failed — using 10.0 fallback (deterministic token-reduction ratio)")
-            return 10.0
+            log.warning("Groq judge parsing failed — using 5.0 fallback (deterministic token-reduction ratio)")
+            return 5.0
 
 
 # ──────────────────────────────────────────────
@@ -466,7 +469,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         final   = quality * (tokens_saved / self._original_token_count) if self._original_token_count else 0.0
         if quality < 0.6:
             final -= 0.5
-        return max(0.0, min(1.0, final))
+        return max(-1.0, min(1.0, final))  # allow negative per spec
 
     # ── OpenEnv API ───────────────────────────
 
@@ -509,7 +512,13 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             episode_id=episode_id or str(uuid.uuid4()),
             step_count=0,
         )
-        return self._build_obs(reward=None, done=False)
+        # Expose original_token_count in metadata so the static grade() method
+        # and external evaluators can compute real compression ratios.
+        return self._build_obs(
+            reward=None,
+            done=False,
+            metadata={"original_token_count": self._original_token_count},
+        )
 
     def step(
         self,
@@ -578,7 +587,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                 self._done   = True
                 final_reward = self._run_judge_flow()
                 return self._build_obs(
-                    reward=max(0.0, min(1.0, step_reward + final_reward)),
+                    reward=max(-1.0, min(1.0, step_reward + final_reward)),
                     done=True,
                     metadata={"info": "all remaining spans locked, episode terminated", "final_reward": final_reward},
                 )
@@ -587,7 +596,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             self._done   = True
             final_reward = self._run_judge_flow()
             return self._build_obs(
-                reward=max(0.0, min(1.0, step_reward + final_reward)),
+                reward=max(-1.0, min(1.0, step_reward + final_reward)),
                 done=True,
                 metadata={"info": "episode terminated", "final_reward": final_reward},
             )
@@ -620,21 +629,36 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         elif len(args) == 2:
             # Convention 2a: (action, observation)
+            # The observation reflects the *current* (compressed) state. The
+            # original token count is injected into obs.metadata by reset() so
+            # we can reconstruct the compression ratio without before/after capture.
             _action, obs = args
-            original_prompt   = getattr(obs, "prompt_text", "") or ""
-            compressed_prompt = original_prompt  # best proxy without before/after capture
+            compressed_prompt = getattr(obs, "prompt_text", "") or ""
             original_output   = ""
             compressed_output = ""
             task_type         = getattr(obs, "task_type", "qa")
+            metadata          = getattr(obs, "metadata", {}) or {}
+            orig_tokens       = metadata.get("original_token_count", 0)
+            # Reconstruct a synthetic original_prompt of the right token length
+            # so the compression ratio below is accurate even without the raw text.
+            if orig_tokens:
+                original_prompt = " ".join(["x"] * orig_tokens)
+            else:
+                original_prompt = compressed_prompt  # fallback: ratio = 0
 
         elif len(args) == 1:
             # Convention 2b: (observation,)
             obs               = args[0]
-            original_prompt   = getattr(obs, "prompt_text", "") or ""
-            compressed_prompt = original_prompt
+            compressed_prompt = getattr(obs, "prompt_text", "") or ""
             original_output   = ""
             compressed_output = ""
             task_type         = getattr(obs, "task_type", "qa")
+            metadata          = getattr(obs, "metadata", {}) or {}
+            orig_tokens       = metadata.get("original_token_count", 0)
+            if orig_tokens:
+                original_prompt = " ".join(["x"] * orig_tokens)
+            else:
+                original_prompt = compressed_prompt
 
         else:
             # Convention 3: keyword args (or empty call — graceful fallback)

@@ -17,9 +17,11 @@ The agent observes a bloated prompt broken down into sentence-level spans and it
 
 The environment provides 3 distinct difficulty tiers, scaling up in nuance:
 
-- **Easy (QA)**: Budgets of 20-24 tokens. Simple questions padded with obvious filler like "I was wondering if you could...". A single elision usually hits the target budget.
-- **Medium (Summarization, Code Generation)**: Budgets of 26-34 tokens. Prompts include context to summarize or function requirements. Some filler exists, but preserving structural requirements is essential.
-- **Hard (Reasoning)**: Budgets of 28-33 tokens. Multi-step reasoning questions (e.g. arithmetic or logic puzzles). Deleting the wrong semantic span will catastrophically break the Target LLM’s reasoning chain. Challenges frontier models to discern what information is load-bearing.
+- **Easy (QA)**: Budgets of ~20-24 tokens (55% of original length). Simple questions padded with obvious filler like "I was wondering if you could...". A single elision usually hits the target budget.
+- **Medium (Summarization, Code Generation)**: Budgets of ~26-34 tokens (55% of original length). Prompts include context to summarize or function requirements. Some filler exists, but preserving structural requirements is essential.
+- **Hard (Reasoning)**: Budgets of ~28-33 tokens (55% of original length). Multi-step reasoning questions (e.g. arithmetic or logic puzzles). Deleting the wrong semantic span will catastrophically break the Target LLM’s reasoning chain. Challenges frontier models to discern what information is load-bearing.
+
+*Note: The environment dynamically calculates the `token_budget` at 55% of the original token count at reset (`max(1, int(original_token_count * 0.55))`). The ranges above represent the typical budgets for the core dataset.*
 
 ## Action & Observation Space
 
@@ -49,7 +51,7 @@ At each step, the agent targets one span via its UUID and applies one of three a
 The reward function provides dense intermediate signals per step plus a terminal judge score:
 - **Intermediate**: `(prev_tokens - new_tokens) / original_tokens × 0.5` for successful compression steps.
 - **Penalties**: `-0.1` for invalid actions, `-0.5` for eliding all spans (empty prompt).
-- **Final Reward**: `quality_score × (tokens_saved / tokens_original)`. Collapsed quality (<0.6) yields a `-0.5` penalty. Scores are strictly clamped between `[0.0, 1.0]`.
+- **Final Reward**: `quality_score × (tokens_saved / tokens_original)`. Collapsed quality (<0.6) yields a `-0.5` penalty. Scores are strictly clamped between `[-1.0, 1.0]`.
 
 ## Setup and Docker
 
@@ -60,6 +62,9 @@ docker run -p 8000:8000 prompt_zip_env
 ```
 The application will serve from `http://localhost:8000`.
 
+### Important Notes
+- **Concurrency**: `SUPPORTS_CONCURRENT_SESSIONS = False`. The environment operates as a stateful singleton. Evaluators must run episodes sequentially. Parallel agents will cause state collisions and serialization errors.
+
 ## Inference Baseline
 
 The baseline client script uses the standard `openai` library compatible package. Set your environment variables (use `.env.example` as a template):
@@ -67,8 +72,10 @@ The baseline client script uses the standard `openai` library compatible package
 export API_BASE_URL="https://api.openai.com/v1"
 export MODEL_NAME="gpt-4o-mini"
 export OPENAI_API_KEY="your_token_here"
-export GROQ_API_KEY="your_groq_key_here"  # optional for internal judge
+export GROQ_API_KEY="your_groq_key_here"  # optional, but recommended
 ```
+
+*Note: Without `GROQ_API_KEY`, the environment's quality judge falls back to a fixed 0.5 quality score; setting it enables real semantic evaluation via Groq.*
 
 To run baseline execution:
 ```bash
@@ -81,4 +88,5 @@ Running `gpt-4o-mini` on the environment yields the following scores (aggregated
 - **easy**: ~ +0.5520 
 - **medium**: ~ +0.4851
 - **hard**: ~ +0.3210
-*(Exact numbers vary per sample but consistently drop according to difficulty.)*
+
+*(Note: These baseline scores were generated with `GROQ_API_KEY` set to enable the full LLM semantic judge. Exact numbers vary per sample but consistently drop according to difficulty.)*

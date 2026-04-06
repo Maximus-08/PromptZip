@@ -57,9 +57,9 @@ def test_groq_client_judge():
     # Force mock
     client._client = None
     
-    # Empty chat result returns fallback score 10.0
+    # Empty chat result returns fallback score 5.0 (security fix)
     score = client.judge("orig", "comp", "orig_out", "comp_out", "summarization")
-    assert score == 10.0
+    assert score == 5.0
 
 def test_groq_chat_exception(monkeypatch):
     import groq
@@ -89,7 +89,7 @@ def test_groq_chat_exception(monkeypatch):
 def test_final_reward_negative():
     env = PromptZipEnvironment()
     env._groq._client = None
-    # Patch judge to return a low score to trigger final -= 5.0
+    # Patch judge to return a low score to trigger final -= 0.5
     env._groq.judge = lambda *args, **kwargs: 2.0
     env.reset()
     
@@ -104,6 +104,6 @@ def test_final_reward_negative():
     env._token_budget = 1000
     obs = env.step(PromptZipAction(action_type="elide", span_id=list(env._spans.keys())[0]))
     
-    # Final reward should be clamped to 0.0 due to the cliff instead of going negative
+    # Final reward should be clamped to -1.0 per spec (it was 0.0 previously)
     assert obs.done is True
-    assert obs.reward >= 0
+    assert obs.reward >= -1.0
