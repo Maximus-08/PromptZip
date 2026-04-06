@@ -84,7 +84,7 @@ python inference.py
 
 ### Reproducible Baseline Scores
 
-Running `llama-3.3-70b-versatile` on the environment yields the following scores (aggregated across seeds):
+Running `llama-3.3-70b-versatile` as the inference policy agent (via Groq's OpenAI-compatible API) yields the extremely strong following scores (aggregated across seeds):
 - **easy**: ~ +0.9320 
 - **medium**: ~ +0.6569
 - **hard**: ~ +0.4879
