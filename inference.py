@@ -198,7 +198,10 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
                 action_dict["span_id"]     = unlocked[0]
                 action_dict["action_type"] = "preserve"
             else:
-                obs = env.step(PromptZipAction(action_type="preserve", span_id=list(obs.spans.keys())[0]))
+                # Should be unreachable (since episodes terminate when fully locked),
+                # but if reached, force exit rather than stepping on a locked span
+                # which would cause a non-terminal penalty step.
+                obs.done = True
                 break
 
         action = PromptZipAction(

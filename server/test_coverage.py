@@ -27,15 +27,17 @@ def test_all_spans_locked_terminates(env):
 # ── 11. seed is respected ───────────────────────────────────────────────────
 
 def test_seed_modifies_dataset_idx():
-    # With difficulty="medium" there are 8 prompts in the pool (4 summarization + 4 code_gen)
-    # seed=5 → idx = 5 % 8 = 5, then +1 after load = 6
+    # The environment has been fixed to NOT mutate _dataset_idx on seeded calls.
     env1 = PromptZipEnvironment()
+    env1._dataset_idx = 0
+    
+    # Seeded call should leave _dataset_idx alone
     env1.reset(seed=5, difficulty="medium")
-    assert env1._dataset_idx == (5 % 8) + 1
-    # seed=10 → idx = 10 % 8 = 2, then +1 = 3
-    env2 = PromptZipEnvironment()
-    env2.reset(seed=10, difficulty="medium")
-    assert env2._dataset_idx == (10 % 8) + 1
+    assert env1._dataset_idx == 0
+    
+    # Seedless call should increment it
+    env1.reset(seed=None, difficulty="medium")
+    assert env1._dataset_idx == 1
 
 # ── 12. _segment edge cases ─────────────────────────────────────────────────
 

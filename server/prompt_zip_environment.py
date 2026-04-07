@@ -433,10 +433,14 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     def _build_obs(
         self, reward: float | None, done: bool, metadata: Optional[dict] = None
     ) -> PromptZipObservation:
+        meta = {"original_token_count": self._original_token_count}
+        if metadata:
+            meta.update(metadata)
+
         obs = PromptZipObservation(
             done=done,
             reward=reward,
-            metadata=metadata or {},
+            metadata=meta,
             prompt_text=self._prompt_text(),
             spans=dict(self._spans),
             token_count=self._token_count(),
@@ -496,9 +500,10 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             pool = DATASET
 
         if seed is not None:
-            self._dataset_idx = seed % len(pool)
-        entry = pool[self._dataset_idx % len(pool)]
-        self._dataset_idx += 1
+            entry = pool[seed % len(pool)]
+        else:
+            entry = pool[self._dataset_idx % len(pool)]
+            self._dataset_idx += 1
 
         self._task_type           = entry["task_type"]
         self._spans, self._seps   = _segment(entry["prompt"])
@@ -530,33 +535,36 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         if self._done:
             return self._build_obs(reward=0.0, done=True, metadata={"info": "episode already done"})
 
-        if self._state.step_count >= 2 * self._initial_span_count:
-            # Increment step count so the action is reflected in history,
-            # then terminate via judge (last action is recorded below).
-            self._state.step_count += 1
-            self._action_history.append({"action_type": action.action_type, "span_id": action.span_id})
-            self._done      = True
-            final_reward    = self._run_judge_flow()
-            return self._build_obs(
-                reward=final_reward,
-                done=True,
-                metadata={"info": "step limit reached", "final_reward": final_reward},
-            )
-
         self._state.step_count += 1
 
         if action.span_id not in self._spans or action.span_id in self._locked_spans:
+            if self._state.step_count >= 2 * self._initial_span_count:
+                # Step limit reached on an invalid action
+                self._done = True
+                final_reward = self._run_judge_flow()
+                return self._build_obs(
+                    reward=-0.1 + final_reward,
+                    done=True,
+                    metadata={"info": f"invalid or locked span_id: {action.span_id}, step limit reached", "final_reward": final_reward},
+                )
             return self._build_obs(
                 reward=-0.1,
                 done=False,
                 metadata={"info": f"invalid or locked span_id: {action.span_id}"},
             )
 
+        self._action_history.append({"action_type": action.action_type, "span_id": action.span_id})
         prev_tokens = self._token_count()
 
         if action.action_type == "elide":
+            sep_to_transfer = self._seps.pop(action.span_id, None)
+            keys = list(self._spans.keys())
+            idx = keys.index(action.span_id)
+            if idx > 0 and sep_to_transfer and "\n" in sep_to_transfer:
+                # Transfer paragraph breaks to the preceding span so meaning/structure isn't lost
+                self._seps[keys[idx - 1]] = sep_to_transfer
             del self._spans[action.span_id]
-            self._seps.pop(action.span_id, None)
+
             if not self._spans:
                 self._done = True
                 return self._build_obs(
@@ -569,8 +577,6 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             self._spans[action.span_id] = self._groq.rewrite(original_span)
         elif action.action_type == "preserve":
             self._locked_spans.append(action.span_id)
-
-        self._action_history.append({"action_type": action.action_type, "span_id": action.span_id})
 
         new_tokens  = self._token_count()
         step_reward = (
