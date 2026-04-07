@@ -37,16 +37,12 @@ USE_DIRECT   = os.environ.get("USE_DIRECT", "0") == "1"
 MAX_STEPS             = 20
 TEMPERATURE           = 0.0
 MAX_TOKENS            = 256
-MAX_TOTAL_REWARD      = 1.0
+# Expected maximum cumulative reward per episode: per-step rewards (up to ~0.5)
+# plus terminal judge reward (up to ~1.0) → realistic ceiling ~1.5; use 2.0 so
+# genuinely excellent runs score near 1.0 without clamping mediocre ones there too.
+MAX_TOTAL_REWARD      = 2.0
 SUCCESS_SCORE_THRESHOLD = 0.4
 FALLBACK_ACTION       = '{"action_type": "preserve", "span_id": "__fallback__"}'
-
-# Maps difficulty tier → canonical task name for log_start (called before reset())
-_DIFFICULTY_TASK: dict[str, str] = {
-    "easy":   "qa",
-    "medium": "summarization",
-    "hard":   "reasoning",
-}
 
 SYSTEM_PROMPT = """\
 You are a prompt compression agent. You receive a bloated LLM prompt split into
@@ -158,11 +154,14 @@ class HttpEnv:
 def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[float, bool, int, list[float]]:
     """Run one episode and return (score, success, steps_taken, rewards).
 
-    Note: [START]/[END] log pairs are emitted by the caller (main) at
-    task/tier level, not per episode, to match the evaluator's expectation
-    of exactly one pair per difficulty tier (3 pairs total).
+    Emits one [START]/[END] log pair per episode (9 total across all tiers),
+    using the actual task_type from the first observation so the logged task
+    is always accurate (medium can be summarization OR code_gen).
     """
     obs = env.reset(difficulty=difficulty, seed=seed)
+
+    # Emit [START] with the real task type now that we have the first observation.
+    log_start(task=obs.task_type, env=difficulty, model=MODEL_NAME)
 
     rewards: list[float] = []
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -219,6 +218,10 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
 
     score   = min(max(sum(rewards) / MAX_TOTAL_REWARD, 0.0), 1.0) if MAX_TOTAL_REWARD > 0 else 0.0
     success = score >= SUCCESS_SCORE_THRESHOLD
+
+    # Emit [END] closing this episode's log pair.
+    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
     return score, success, steps_taken, rewards
 
 
@@ -242,23 +245,11 @@ def main() -> None:
     results: dict[str, list[float]] = {d: [] for d in difficulties}
 
     for difficulty in difficulties:
-        # One [START]/[END] pair per difficulty tier (3 total) — evaluator spec.
-        log_start(task=_DIFFICULTY_TASK.get(difficulty, difficulty), env=difficulty, model=MODEL_NAME)
-
-        all_rewards:  list[float] = []
-        all_steps:    int         = 0
-        tier_success: bool        = False
-
+        # Emit one [START]/[END] pair per episode (9 total), not per tier.
+        # run_episode() handles both START and END logging now.
         for seed in range(episodes_per_difficulty):
             score, success, steps, rewards = run_episode(env, client, difficulty, seed=seed)
             results[difficulty].append(score)
-            all_rewards.extend(rewards)
-            all_steps += steps
-            if success:
-                tier_success = True
-
-        tier_avg = sum(results[difficulty]) / len(results[difficulty])
-        log_end(success=tier_success, steps=all_steps, score=tier_avg, rewards=all_rewards)
 
     print("\n" + "=" * 60, flush=True)
     print("BASELINE SCORES", flush=True)

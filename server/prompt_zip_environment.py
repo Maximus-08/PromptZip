@@ -531,6 +531,10 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             return self._build_obs(reward=0.0, done=True, metadata={"info": "episode already done"})
 
         if self._state.step_count >= 2 * self._initial_span_count:
+            # Increment step count so the action is reflected in history,
+            # then terminate via judge (last action is recorded below).
+            self._state.step_count += 1
+            self._action_history.append({"action_type": action.action_type, "span_id": action.span_id})
             self._done      = True
             final_reward    = self._run_judge_flow()
             return self._build_obs(
@@ -622,6 +626,12 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         Convention 3 — keyword args:
             grade(original_prompt=..., compressed_prompt=..., ...)
         """
+        # ── Shared sentinels (always set before any branch) ───────────────
+        # The compute block below references these in every calling convention;
+        # initialise here to avoid NameError when Convention 1 or 3 is used.
+        _obs_ref:          Any = None
+        _orig_tokens_meta: int = 0
+
         # ── Resolve arguments ─────────────────────────────────────────────
         if len(args) == 5 and isinstance(args[0], str):
             # Convention 1: all five strings supplied positionally
@@ -632,31 +642,31 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             # The observation reflects the *current* (compressed) state. The
             # original token count is injected into obs.metadata by reset() so
             # we can reconstruct the compression ratio without before/after capture.
-            _action, obs = args
-            compressed_prompt = getattr(obs, "prompt_text", "") or ""
+            _action, _obs_ref = args
+            compressed_prompt = getattr(_obs_ref, "prompt_text", "") or ""
             original_output   = ""
             compressed_output = ""
-            task_type         = getattr(obs, "task_type", "qa")
-            metadata          = getattr(obs, "metadata", {}) or {}
-            orig_tokens       = metadata.get("original_token_count", 0)
-            # Reconstruct a synthetic original_prompt of the right token length
-            # so the compression ratio below is accurate even without the raw text.
-            if orig_tokens:
-                original_prompt = " ".join(["x"] * orig_tokens)
+            task_type         = getattr(_obs_ref, "task_type", "qa")
+            metadata          = getattr(_obs_ref, "metadata", {}) or {}
+            _orig_tokens_meta = metadata.get("original_token_count", 0)
+            # Divide by 1.3 to convert approx-token count back to word count so the
+            # split-based compression ratio below matches the real reduction exactly.
+            if _orig_tokens_meta:
+                original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
             else:
                 original_prompt = compressed_prompt  # fallback: ratio = 0
 
         elif len(args) == 1:
             # Convention 2b: (observation,)
-            obs               = args[0]
-            compressed_prompt = getattr(obs, "prompt_text", "") or ""
+            _obs_ref          = args[0]
+            compressed_prompt = getattr(_obs_ref, "prompt_text", "") or ""
             original_output   = ""
             compressed_output = ""
-            task_type         = getattr(obs, "task_type", "qa")
-            metadata          = getattr(obs, "metadata", {}) or {}
-            orig_tokens       = metadata.get("original_token_count", 0)
-            if orig_tokens:
-                original_prompt = " ".join(["x"] * orig_tokens)
+            task_type         = getattr(_obs_ref, "task_type", "qa")
+            metadata          = getattr(_obs_ref, "metadata", {}) or {}
+            _orig_tokens_meta = metadata.get("original_token_count", 0)
+            if _orig_tokens_meta:
+                original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
             else:
                 original_prompt = compressed_prompt
 
@@ -673,8 +683,14 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         comp_len    = len(compressed_prompt.split())
         compression = max(0.0, 1.0 - comp_len / orig_len)
 
-        # Guard: if outputs are missing/mock, fall back to compression-only score
+        # Guard: if outputs are missing/mock, fall back to compression-only score.
+        # In Convention 2 (action, obs), we have no outputs — prefer the direct
+        # token-count ratio stored in the observation so the score is exact.
         if not original_output or not compressed_output or original_output == "[mock output]":
+            if _orig_tokens_meta and _obs_ref is not None:
+                real_comp   = getattr(_obs_ref, "token_count", None)
+                if real_comp is not None:
+                    compression = max(0.0, 1.0 - real_comp / _orig_tokens_meta)
             return round(min(1.0, compression), 4)
 
         orig_toks = set(original_output.lower().split())

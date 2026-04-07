@@ -1,5 +1,5 @@
-from typing import Any, Literal
-from pydantic import Field
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, Field
 from openenv.core.env_server.types import Action, Observation
 
 
@@ -27,3 +27,13 @@ class PromptZipObservation(Observation):
     token_budget:   int
     action_history: list[dict]   # [{"action_type": ..., "span_id": ...}, ...]
     locked_spans:   list[str]    # UUIDs of preserved spans
+
+
+class PromptZipReward(BaseModel):
+    """Typed reward breakdown returned at each step and episode termination."""
+
+    step_reward:        float           # Intermediate token-reduction reward for this action
+    final_reward:       Optional[float] = None   # Terminal judge reward (None until episode ends)
+    total_reward:       float           = 0.0    # step_reward + final_reward (if terminal)
+    termination_reason: Optional[str]  = None   # Why the episode ended (None if mid-episode)
+    quality_score:      Optional[float] = None   # Normalised 0–1 quality from LLM judge
