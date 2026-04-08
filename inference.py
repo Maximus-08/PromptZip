@@ -26,10 +26,12 @@ load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
+# Defaults set ONLY for API_BASE_URL and MODEL_NAME (per competition spec).
+# HF_TOKEN has no default — must be explicitly set in the environment.
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME   = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-# Competition spec mandates OPENAI_API_KEY; HF_TOKEN is the fallback alias
-API_KEY      = os.environ.get("OPENAI_API_KEY") or os.environ.get("HF_TOKEN") or ""
+HF_TOKEN     = os.getenv("HF_TOKEN")               # no default — required by spec
+API_KEY      = os.environ.get("OPENAI_API_KEY") or HF_TOKEN or ""
 DEBUG        = os.environ.get("DEBUG", "0") == "1"
 ENV_URL      = os.environ.get("ENV_URL", "http://localhost:8000")
 USE_DIRECT   = os.environ.get("USE_DIRECT", "0") == "1"
