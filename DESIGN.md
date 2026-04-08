@@ -22,14 +22,14 @@ Every LLM call wastes 30–50% of tokens on boilerplate and filler. Output token
 | **Actions** | `PromptZipAction(action_type, span_id)` — each is one `step()` call |
 | **Reward** | Intermediate: token delta per step. Final: `quality_score × (tokens_saved / tokens_original)` |
 | **Termination** | Token count ≤ budget, quality < threshold, max_steps reached, or short-circuit (all-locked/empty) |
-| **max_steps** | `2 × len(spans)` — each span can be touched at most twice |
+| **max_steps** | `3 × len(spans)` — to prevent indefinite loops |
 | **Grader** | LLM-as-judge (temperature=0, single call) scoring compressed output vs. baseline |
 
 ### Action Space
 
 | Action | What It Does | Execution | Best For |
 | --- | --- | --- | --- |
-| **Rephrase** | Rewrite a clause to convey the same meaning in fewer tokens | Calls Rewrite LLM with `"Rewrite concisely, preserve meaning: {span}"` | Verbose instructions, formal/corporate language |
+| **Rephrase** | Rewrite a clause to convey the same meaning in fewer tokens | Local programmatic truncation proxy | Verbose instructions, formal/corporate language |
 | **Elide** | Delete a selected span entirely | Removes the span; no LLM call needed | Boilerplate like "please be thorough", polite preambles |
 | **Preserve** | Mark a span as off-limits for further compression | Tags span; skips it in future steps | Task-critical instructions, factual content |
 
@@ -88,7 +88,7 @@ This is the core execution mechanism. Each step:
 4. Loop continues until termination condition is met.
 5. At episode end (unless short-circuited), Target LLM generates outputs for both prompts; LLM Judge scores the comparison.
 
-The Rewrite LLM runs at `temperature=0` for deterministic outputs. It is **not** the same model as the Judge.
+The Judge LLM runs at `temperature=0` for deterministic outputs.
 
 ---
 
@@ -117,7 +117,7 @@ final_reward = quality_score × (tokens_saved / tokens_original)
 
 ### Quality Drop Penalty
 
-If `quality_score` drops below 6.0 at episode end, an additional penalty of `−5.0` is applied.
+If `quality_score` drops below 6.0 at episode end, an additional penalty of `−0.5` is applied.
 
 ---
 
@@ -145,18 +145,16 @@ The RL agent learns these asymmetries across thousands of episodes, generalizing
 
 ## Dataset
 
-The training dataset consists of **500 bloated prompts** across 4 task types (125 each):
+The training dataset consists of **16 hardcoded bloated prompts** across 4 task types:
 
 | Task Type | Generation Method | Bloat Type |
 | --- | --- | --- |
-| Summarization | Clean prompt → GPT-4 expands with filler | Polite preambles, redundant instructions |
-| Code generation | Stack Overflow questions → manually padded | Hedging language, over-specified formatting requests |
-| Multi-step reasoning | BIG-Bench tasks → wrapped in boilerplate | Meta-instructions, verbose role-play framing |
-| Q&A | TriviaQA → padded with academic register | Formal preambles, restated context |
+| Summarization | Clean prompt → expanded with filler | Polite preambles, redundant instructions |
+| Code generation | Questions → manually padded | Hedging language, over-specified formatting requests |
+| Multi-step reasoning | Reasoning tasks → wrapped in boilerplate | Meta-instructions, verbose role-play framing |
+| Q&A | Trivia questions → padded | Formal preambles, restated context |
 
-Each example includes: `{bloated_prompt, clean_prompt, task_type, token_budget}`. The `clean_prompt` serves as a reference for judge calibration but is **not** given to the agent.
-
-Dataset is versioned and published to Hugging Face Hub at `promptzip/prompt-bloat-v1`.
+Each example includes: `{prompt, task_type}`. The `clean_prompt` serves as a reference for judge calibration but is **not** given to the agent.
 
 ---
 
@@ -230,7 +228,7 @@ graph TD
 | --- | --- |
 | **Container** | Single Docker image (FastAPI + Python) built via openenv |
 | **Platform** | Hugging Face Spaces |
-| **Rewrite LLM** | Groq API (`llama-3.3-70b-versatile`) or mock fallback |
+| **Rewrite Logic** | Local Python function |
 | **Target LLM** | Groq API (`llama-3.1-8b-instant`) or mock fallback |
 | **Judge LLM** | Groq API (`llama-3.3-70b-versatile`) or mock fallback |
 | **Training** | TRL / Torchforge GRPO pipeline |

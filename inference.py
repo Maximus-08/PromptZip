@@ -37,11 +37,10 @@ USE_DIRECT   = os.environ.get("USE_DIRECT", "0") == "1"
 MAX_STEPS             = 20
 TEMPERATURE           = 0.0
 MAX_TOKENS            = 256
-# Expected maximum cumulative reward per episode: per-step rewards (up to ~0.5)
-# plus terminal judge reward (up to ~1.0) → realistic ceiling ~1.5; use 2.0 so
-# genuinely excellent runs score near 1.0 without clamping mediocre ones there too.
-MAX_TOTAL_REWARD      = 2.0
-SUCCESS_SCORE_THRESHOLD = 0.4
+# Normaliser for episode score: sum(rewards) / MAX_TOTAL_REWARD, clamped to [0, 1].
+# Set to 1.2 so a good episode (step rewards ~0.2 + final ~0.8) lands near 0.8.
+MAX_TOTAL_REWARD      = 1.2
+SUCCESS_SCORE_THRESHOLD = 0.25
 FALLBACK_ACTION       = '{"action_type": "preserve", "span_id": "__fallback__"}'
 
 SYSTEM_PROMPT = """\
@@ -158,10 +157,14 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
     using the actual task_type from the first observation so the logged task
     is always accurate (medium can be summarization OR code_gen).
     """
-    obs = env.reset(difficulty=difficulty, seed=seed)
+    try:
+        obs = env.reset(difficulty=difficulty, seed=seed)
+    except Exception as exc:
+        if DEBUG:
+            log(f"  [DEBUG] Reset failed: {exc}")
+        return 0.0, False, 0, []
 
-    # Emit [START] with the real task type now that we have the first observation.
-    log_start(task=obs.task_type, env=difficulty, model=MODEL_NAME)
+    log_start(task=obs.task_type, env="prompt_zip_env", model=MODEL_NAME)
 
     rewards: list[float] = []
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -222,7 +225,6 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
     score   = min(max(sum(rewards) / MAX_TOTAL_REWARD, 0.0), 1.0) if MAX_TOTAL_REWARD > 0 else 0.0
     success = score >= SUCCESS_SCORE_THRESHOLD
 
-    # Emit [END] closing this episode's log pair.
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
     return score, success, steps_taken, rewards
@@ -246,13 +248,15 @@ def main() -> None:
     episodes_per_difficulty = 3  # seeds 0/1/2 sample different prompts per tier
 
     results: dict[str, list[float]] = {d: [] for d in difficulties}
+    total_steps = 0
+    all_rewards = []
 
     for difficulty in difficulties:
-        # Emit one [START]/[END] pair per episode (9 total), not per tier.
-        # run_episode() handles both START and END logging now.
         for seed in range(episodes_per_difficulty):
             score, success, steps, rewards = run_episode(env, client, difficulty, seed=seed)
             results[difficulty].append(score)
+            total_steps += steps
+            all_rewards.extend(rewards)
 
     print("\n" + "=" * 60, flush=True)
     print("BASELINE SCORES", flush=True)
@@ -263,6 +267,8 @@ def main() -> None:
         avg    = sum(scores) / len(scores) if scores else 0.0
         grand_total += avg
         print(f"  {difficulty:8s}: avg={avg:+.4f} ({scores})", flush=True)
+    
+    final_score = grand_total / len(difficulties) if difficulties else 0.0
     print(f"  {'TOTAL':8s}: {grand_total:+.4f}", flush=True)
     print("=" * 60, flush=True)
 

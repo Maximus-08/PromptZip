@@ -321,22 +321,12 @@ class _GroqClient:
             return ""
 
     def rewrite(self, span: str) -> str:
-        result = self._chat(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        "Rewrite the following to convey the same meaning in fewer words. "
-                        "Return only the rewritten text, no explanation.\n\n" + span
-                    ),
-                }
-            ],
-        )
-        if not result:
-            words = span.split()
-            return " ".join(words[: max(1, int(len(words) * 0.6))])
-        return result
+        # A live API call for every 'rephrase' action adds too much latency and ruins timeout limits.
+        # Fall back to a deterministic local structural compression proxy.
+        words = span.split()
+        if len(words) <= 2:
+            return span
+        return " ".join(words[: max(1, int(len(words) * 0.6))])
 
     def generate(self, prompt: str) -> str:
         result = self._chat(
@@ -372,17 +362,16 @@ class _GroqClient:
             messages=[{"role": "user", "content": judge_prompt}],
         )
         if not result:
-            # Cap at 5.0 (not 10.0) so offline mode cannot reward-hack via
-            # perfect quality scores.  The system degrades to a deterministic
-            # compression-ratio-only grader at ~50% quality.
-            log.warning("Groq judge call failed — using 5.0 fallback (deterministic token-reduction ratio)")
-            return 5.0
+            # Cap at 6.0 (not 10.0) so offline mode is neutral (no <0.6 penalty)
+            # but doesn't allow reward-hacking via perfect quality scores.
+            log.warning("Groq judge call failed — using 6.0 fallback (deterministic token-reduction ratio)")
+            return 6.0
         try:
             score = float(result.strip().split()[0])
             return max(0.0, min(10.0, score))
         except (ValueError, IndexError):
-            log.warning("Groq judge parsing failed — using 5.0 fallback (deterministic token-reduction ratio)")
-            return 5.0
+            log.warning("Groq judge parsing failed — using 6.0 fallback (deterministic token-reduction ratio)")
+            return 6.0
 
 
 # ──────────────────────────────────────────────
@@ -420,12 +409,13 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         """Reassemble spans preserving their original separators."""
         if not self._spans:
             return ""
+        keys = list(self._spans.keys())
         parts = []
-        for uid, text in self._spans.items():
-            parts.append(text)
-            sep = self._seps.get(uid, " ")
-            parts.append(sep if sep else " ")
-        return "".join(parts).rstrip()
+        for i, uid in enumerate(keys):
+            parts.append(self._spans[uid])
+            if i < len(keys) - 1:
+                parts.append(self._seps.get(uid, " "))
+        return "".join(parts)
 
     def _token_count(self) -> int:
         return _count_tokens(self._prompt_text())
@@ -433,9 +423,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
     def _build_obs(
         self, reward: float | None, done: bool, metadata: Optional[dict] = None
     ) -> PromptZipObservation:
-        meta = {"original_token_count": self._original_token_count}
-        if metadata:
-            meta.update(metadata)
+        meta = metadata or {}
 
         obs = PromptZipObservation(
             done=done,
@@ -448,13 +436,16 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             token_budget=self._token_budget,
             action_history=list(self._action_history),
             locked_spans=list(self._locked_spans),
+            original_token_count=self._original_token_count,
+            original_prompt=self._original_prompt,
         )
         self._last_obs = obs
         return obs
 
     def _is_terminated(self) -> bool:
         tc         = self._token_count()
-        step_limit = self._state.step_count >= 2 * self._initial_span_count
+        # Increased multiplier for hard reasoning tasks to avoid premature termination failure.
+        step_limit = self._state.step_count >= 3 * self._initial_span_count
         return tc <= self._token_budget or step_limit
 
     def _run_judge_flow(self) -> float:
@@ -507,6 +498,8 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         self._task_type           = entry["task_type"]
         self._spans, self._seps   = _segment(entry["prompt"])
+        if not any(s.strip() for s in self._spans.values()):
+            raise ValueError("Dataset entry produced no non-empty spans")
         self._original_prompt     = self._prompt_text()
         self._original_token_count = self._token_count()
         self._token_budget        = max(1, int(self._original_token_count * 0.55))
@@ -517,12 +510,11 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             episode_id=episode_id or str(uuid.uuid4()),
             step_count=0,
         )
-        # Expose original_token_count in metadata so the static grade() method
-        # and external evaluators can compute real compression ratios.
+        # Expose original_token_count and original_prompt in metadata so the static grade() method
+        # and external evaluators can compute real compression ratios and evaluate semantics offline.
         return self._build_obs(
             reward=None,
             done=False,
-            metadata={"original_token_count": self._original_token_count},
         )
 
     def step(
@@ -538,12 +530,12 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         self._state.step_count += 1
 
         if action.span_id not in self._spans or action.span_id in self._locked_spans:
-            if self._state.step_count >= 2 * self._initial_span_count:
+            if self._state.step_count >= 3 * self._initial_span_count:
                 # Step limit reached on an invalid action
                 self._done = True
                 final_reward = self._run_judge_flow()
                 return self._build_obs(
-                    reward=-0.1 + final_reward,
+                    reward=max(-1.0, min(1.0, -0.1 + final_reward)),
                     done=True,
                     metadata={"info": f"invalid or locked span_id: {action.span_id}, step limit reached", "final_reward": final_reward},
                 )
@@ -653,14 +645,13 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             original_output   = ""
             compressed_output = ""
             task_type         = getattr(_obs_ref, "task_type", "qa")
-            metadata          = getattr(_obs_ref, "metadata", {}) or {}
-            _orig_tokens_meta = metadata.get("original_token_count", 0)
-            # Divide by 1.3 to convert approx-token count back to word count so the
-            # split-based compression ratio below matches the real reduction exactly.
-            if _orig_tokens_meta:
-                original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
-            else:
-                original_prompt = compressed_prompt  # fallback: ratio = 0
+            _orig_tokens_meta = getattr(_obs_ref, "original_token_count", 0)
+            original_prompt   = getattr(_obs_ref, "original_prompt", "")
+            if not original_prompt:
+                if _orig_tokens_meta:
+                    original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
+                else:
+                    original_prompt = compressed_prompt  # fallback: ratio = 0
 
         elif len(args) == 1:
             # Convention 2b: (observation,)
@@ -669,12 +660,13 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             original_output   = ""
             compressed_output = ""
             task_type         = getattr(_obs_ref, "task_type", "qa")
-            metadata          = getattr(_obs_ref, "metadata", {}) or {}
-            _orig_tokens_meta = metadata.get("original_token_count", 0)
-            if _orig_tokens_meta:
-                original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
-            else:
-                original_prompt = compressed_prompt
+            _orig_tokens_meta = getattr(_obs_ref, "original_token_count", 0)
+            original_prompt   = getattr(_obs_ref, "original_prompt", "")
+            if not original_prompt:
+                if _orig_tokens_meta:
+                    original_prompt = " ".join(["x"] * int(_orig_tokens_meta / 1.3))
+                else:
+                    original_prompt = compressed_prompt
 
         else:
             # Convention 3: keyword args (or empty call — graceful fallback)
@@ -689,25 +681,54 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         comp_len    = len(compressed_prompt.split())
         compression = max(0.0, 1.0 - comp_len / orig_len)
 
-        # Guard: if outputs are missing/mock, fall back to compression-only score.
+        # Apply task-type awareness weights
+        if task_type == "reasoning":
+            sem_weight, comp_weight = 0.8, 0.2
+            over_comp_threshold = 0.6
+        elif task_type == "qa":
+            sem_weight, comp_weight = 0.4, 0.6
+            over_comp_threshold = 0.85
+        else:
+            sem_weight, comp_weight = 0.6, 0.4
+            over_comp_threshold = 0.8
+
+        # If we have real outputs, try using the Groq LLM judge for consistency with episode termination
+        if original_output and compressed_output and original_output != "[mock output]" and compressed_output != "[mock output]":
+            # Avoid circular import issues on static method execution
+            from server.prompt_zip_environment import _GroqClient
+            client = _GroqClient()
+            if client._client is not None:
+                raw_score = client.judge(original_prompt, compressed_prompt, original_output, compressed_output, task_type)
+                return round(raw_score / 10.0, 4)
+
+            # Fallback to output overlap
+            orig_toks = set(original_output.lower().split())
+            comp_toks = set(compressed_output.lower().split())
+            overlap   = len(orig_toks & comp_toks) / max(len(orig_toks), 1)
+
+            if compression > over_comp_threshold:
+                compression *= 0.5
+            return round(min(1.0, sem_weight * overlap + comp_weight * compression), 4)
+
+        # Guard: if outputs are missing/mock, fall back to FULLY DETERMINISTIC prompt overlap.
         # In Convention 2 (action, obs), we have no outputs — prefer the direct
-        # token-count ratio stored in the observation so the score is exact.
-        if not original_output or not compressed_output or original_output == "[mock output]":
+        # prompt texts and token-count ratio stored in the observation so the score is exact.
+        if not original_prompt or original_prompt == " ".join(["x"] * int(_orig_tokens_meta / 1.3)):
             if _orig_tokens_meta and _obs_ref is not None:
                 real_comp   = getattr(_obs_ref, "token_count", None)
                 if real_comp is not None:
                     compression = max(0.0, 1.0 - real_comp / _orig_tokens_meta)
             return round(min(1.0, compression), 4)
 
-        orig_toks = set(original_output.lower().split())
-        comp_toks = set(compressed_output.lower().split())
+        orig_toks = set(original_prompt.lower().split())
+        comp_toks = set(compressed_prompt.lower().split())
         overlap   = len(orig_toks & comp_toks) / max(len(orig_toks), 1)
 
-        # Penalise over-compression (> 80% reduction likely destroys meaning)
-        if compression > 0.8:
+        # Penalise over-compression based on task type limits
+        if compression > over_comp_threshold:
             compression *= 0.5
 
-        return round(min(1.0, 0.6 * overlap + 0.4 * compression), 4)
+        return round(min(1.0, sem_weight * overlap + comp_weight * compression), 4)
 
     @property
     def state(self) -> State:

@@ -59,9 +59,9 @@ def test_groq_client_judge():
     # Force mock
     client._client = None
     
-    # Empty chat result returns fallback score 5.0 (security fix)
+    # Empty chat result returns fallback score 6.0 (neutral quality)
     score = client.judge("orig", "comp", "orig_out", "comp_out", "summarization")
-    assert score == 5.0
+    assert score == 6.0
 
 def test_groq_chat_exception(monkeypatch):
     import groq
@@ -84,7 +84,7 @@ def test_groq_chat_exception(monkeypatch):
     assert res == ""
     
     # This empty string causes rewrite to use identity mock
-    res_rewrite = client.rewrite("hello world")
+    res_rewrite = client.rewrite("hello world again")
     assert res_rewrite == "hello"
 
 # ── 14. final_reward branch ─────────────────────────────────────────────────
