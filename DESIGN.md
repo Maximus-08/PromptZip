@@ -115,6 +115,8 @@ final_reward = quality_score × (tokens_saved / tokens_original)
 | Nothing removed | 10/10 | 0% | 0.0 | No reward |
 | Meaning destroyed | — | — | **−5.0** | Penalty |
 
+*(Note: The values above are conceptual pre-clamping examples to illustrate the math. In the actual implementation, final combined rewards are strictly clamped to `[-1.0, 1.0]`.)*
+
 ### Quality Drop Penalty
 
 If `quality_score` drops below 6.0 at episode end, an additional penalty of `−0.5` is applied.

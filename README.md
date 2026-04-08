@@ -75,7 +75,7 @@ export OPENAI_API_KEY="your_token_here"
 export GROQ_API_KEY="your_groq_key_here"  # optional, but recommended
 ```
 
-*Note: Without `GROQ_API_KEY`, the environment's quality judge falls back to a fixed 0.5 quality score; setting it enables real semantic evaluation via Groq.*
+*Note: Without `GROQ_API_KEY`, the environment's quality judge falls back to a fixed 0.6 quality score; setting it enables real semantic evaluation via Groq.*
 
 To run baseline execution:
 ```bash
