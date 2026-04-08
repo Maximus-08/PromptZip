@@ -694,8 +694,6 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
         # If we have real outputs, try using the Groq LLM judge for consistency with episode termination
         if original_output and compressed_output and original_output != "[mock output]" and compressed_output != "[mock output]":
-            # Avoid circular import issues on static method execution
-            from server.prompt_zip_environment import _GroqClient
             client = _GroqClient()
             if client._client is not None:
                 raw_score = client.judge(original_prompt, compressed_prompt, original_output, compressed_output, task_type)

@@ -34,7 +34,7 @@ DEBUG        = os.environ.get("DEBUG", "0") == "1"
 ENV_URL      = os.environ.get("ENV_URL", "http://localhost:8000")
 USE_DIRECT   = os.environ.get("USE_DIRECT", "0") == "1"
 
-MAX_STEPS             = 20
+MAX_STEPS             = 35
 TEMPERATURE           = 0.0
 MAX_TOKENS            = 256
 # Normaliser for episode score: sum(rewards) / MAX_TOTAL_REWARD, clamped to [0, 1].
@@ -217,7 +217,7 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
         rewards.append(step_reward)
         steps_taken = step
 
-        log_step(step=step, action=response_text, reward=step_reward, done=obs.done, error=None)
+        log_step(step=step, action=json.dumps(action_dict), reward=step_reward, done=obs.done, error=None)
 
         if obs.done:
             break

@@ -24,3 +24,11 @@ class PromptZipObservation(Observation):
     # Included directly so they survive transparently over HTTP serialisation
     original_token_count: int = 0
     original_prompt: str = ""
+
+
+class PromptZipReward(BaseModel):
+    """Typed reward signal returned at episode termination."""
+
+    value: float = Field(..., ge=-1.0, le=1.0, description="Clamped final reward [-1, 1]")
+    compression_ratio: float = Field(0.0, ge=0.0, le=1.0, description="Fraction of tokens removed")
+    quality_score: float = Field(0.0, ge=0.0, le=1.0, description="LLM judge quality score [0, 1]")
