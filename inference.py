@@ -164,7 +164,7 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
     except Exception as exc:
         if DEBUG:
             log(f"  [DEBUG] Reset failed: {exc}")
-        return 0.0, False, 0, []
+        return 0.001, False, 0, []
 
     log_start(task=obs.task_type, env="prompt_zip_env", model=MODEL_NAME)
 
@@ -224,7 +224,8 @@ def run_episode(env, client: OpenAI, difficulty: str, seed: int = 0) -> tuple[fl
         if obs.done:
             break
 
-    score   = min(max(sum(rewards) / MAX_TOTAL_REWARD, 0.0), 1.0) if MAX_TOTAL_REWARD > 0 else 0.0
+    # Validator requires scores strictly in (0, 1) — never exactly 0.0 or 1.0.
+    score   = min(max(sum(rewards) / MAX_TOTAL_REWARD, 0.001), 0.999) if MAX_TOTAL_REWARD > 0 else 0.001
     success = score >= SUCCESS_SCORE_THRESHOLD
 
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
