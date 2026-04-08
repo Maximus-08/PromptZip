@@ -607,7 +607,10 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
     @staticmethod
     def grade(*args: Any, **kwargs: Any) -> float:
-        """Standalone grader for compressed prompt quality [0.0 – 1.0].
+        """Standalone grader for compressed prompt quality (0, 1) exclusive.
+
+        The evaluation harness requires scores strictly between 0 and 1
+        (not 0.0, not 1.0).  All return paths clamp to [_GRADE_MIN, _GRADE_MAX].
 
         Accepts two calling conventions so the method is robust regardless of
         how the evaluation harness invokes it:
@@ -677,6 +680,9 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             task_type         = str(kwargs.get("task_type",         "qa"))
 
         # ── Compute score ─────────────────────────────────────────────────
+        # Evaluation harness requires scores in the OPEN interval (0, 1).
+        _GRADE_MIN, _GRADE_MAX = 0.001, 0.999
+
         orig_len    = max(1, len(original_prompt.split()))
         comp_len    = len(compressed_prompt.split())
         compression = max(0.0, 1.0 - comp_len / orig_len)
@@ -697,7 +703,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
             client = _GroqClient()
             if client._client is not None:
                 raw_score = client.judge(original_prompt, compressed_prompt, original_output, compressed_output, task_type)
-                return round(raw_score / 10.0, 4)
+                return round(max(_GRADE_MIN, min(_GRADE_MAX, raw_score / 10.0)), 4)
 
             # Fallback to output overlap
             orig_toks = set(original_output.lower().split())
@@ -706,7 +712,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
 
             if compression > over_comp_threshold:
                 compression *= 0.5
-            return round(min(1.0, sem_weight * overlap + comp_weight * compression), 4)
+            return round(max(_GRADE_MIN, min(_GRADE_MAX, sem_weight * overlap + comp_weight * compression)), 4)
 
         # Guard: if outputs are missing/mock, fall back to FULLY DETERMINISTIC prompt overlap.
         # In Convention 2 (action, obs), we have no outputs — prefer the direct
@@ -716,7 +722,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
                 real_comp   = getattr(_obs_ref, "token_count", None)
                 if real_comp is not None:
                     compression = max(0.0, 1.0 - real_comp / _orig_tokens_meta)
-            return round(min(1.0, compression), 4)
+            return round(max(_GRADE_MIN, min(_GRADE_MAX, compression)), 4)
 
         orig_toks = set(original_prompt.lower().split())
         comp_toks = set(compressed_prompt.lower().split())
@@ -726,7 +732,7 @@ class PromptZipEnvironment(Environment):  # type: ignore[type-arg]
         if compression > over_comp_threshold:
             compression *= 0.5
 
-        return round(min(1.0, sem_weight * overlap + comp_weight * compression), 4)
+        return round(max(_GRADE_MIN, min(_GRADE_MAX, sem_weight * overlap + comp_weight * compression)), 4)
 
     @property
     def state(self) -> State:
